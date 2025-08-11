@@ -1,8 +1,9 @@
+use bincode::{Decode, Encode};
 use serde_derive::{Deserialize, Serialize};
 
 use crate::proof_of_word::{ProofOfWork};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Encode, Decode)]
 pub struct Block {
     pub prev_hash: Vec<u8>,
     pub data: Vec<u8>,
