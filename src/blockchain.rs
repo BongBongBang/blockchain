@@ -1,5 +1,6 @@
 use bincode::config;
 use readb::{Database, DatabaseSettings};
+use serde_json::map::Iter;
 use std::path::PathBuf;
 
 use crate::block::Block;
@@ -10,6 +11,11 @@ const LATEST_HASH_KEY: &str = "lsh";
 pub struct Blockchain {
     pub latest_hash: Vec<u8>,
     pub database: readb::DefaultDatabase,
+}
+
+pub struct Iterator<'a> {
+    pub database: &'a readb::DefaultDatabase,
+    pub current_hash: String,
 }
 
 impl Blockchain {
@@ -71,5 +77,18 @@ impl Blockchain {
         database
             .put(&String::from_utf8(block.hash).unwrap(), &encoded_block)
             .expect("Failed to save new added block");
+    }
+
+    pub fn iterator<'a>(&'a mut self) -> Iterator<'a> {
+        if let Some(lsh) = self.database.get(LATEST_HASH_KEY).ok().flatten() {
+            return Iterator {
+                database: &self.database,
+                current_hash: String::from_utf8(lsh).expect("Failed to create string from latest hash")
+            }
+        }
+        Iterator {
+            database: &self.database,
+            current_hash: String::default()
+        }
     }
 }
