@@ -1,3 +1,5 @@
+use core::panic;
+
 use bincode::{Decode, Encode};
 use serde_derive::{Deserialize, Serialize};
 
@@ -14,14 +16,14 @@ pub struct Block {
 impl Block {
 
     pub fn genesis() -> Self {
-        Block::create_block(Vec::default(), String::from("Genesis Block")).unwrap()
+        Block::create_block(Vec::default(), String::from("Genesis Block"))
     }
 
     pub fn new(prev_hash: Vec<u8>, data: String) -> Self {
-        Block::create_block(prev_hash, data).unwrap()
+        Block::create_block(prev_hash, data)
     }
 
-    fn create_block(prev_hash: Vec<u8>, data: String) -> Result<Self, String> {
+    pub fn create_block(prev_hash: Vec<u8>, data: String) -> Self {
         // todo: return the solid block, refresh nonce if has traversed it all.
         let mut new_block = Block {
             prev_hash,
@@ -39,13 +41,13 @@ impl Block {
             Some((nonce, hash)) => {
                 new_block.nonce = nonce;
                 new_block.hash = hash;
-                return Ok(new_block);
+                return new_block;
             },
             None => {
                 let mut err_msg = String::with_capacity(128);
                 err_msg.push_str("Failed to calcute proof of work for block, prev_hash: ");
                 err_msg.push_str(&String::from_utf8(new_block.prev_hash).unwrap());
-                return Err(err_msg);
+                panic!("{}", err_msg);
             }
         }
     }
