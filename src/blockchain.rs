@@ -14,7 +14,7 @@ pub struct Blockchain {
 }
 
 pub struct Iterator<'a> {
-    pub database: &'a readb::DefaultDatabase,
+    pub database: &'a mut readb::DefaultDatabase,
     pub current_hash: String,
 }
 
@@ -82,13 +82,39 @@ impl Blockchain {
     pub fn iterator<'a>(&'a mut self) -> Iterator<'a> {
         if let Some(lsh) = self.database.get(LATEST_HASH_KEY).ok().flatten() {
             return Iterator {
-                database: &self.database,
-                current_hash: String::from_utf8(lsh).expect("Failed to create string from latest hash")
-            }
+                database: &mut self.database,
+                current_hash: String::from_utf8(lsh)
+                    .expect("Failed to create string from latest hash"),
+            };
         }
         Iterator {
-            database: &self.database,
-            current_hash: String::default()
+            database: &mut self.database,
+            current_hash: String::default(),
         }
+    }
+}
+
+impl<'a> Iterator<'a> {
+    pub fn next(&mut self) -> Option<Block> {
+        if &self.current_hash == "" {
+            return None;
+        }
+        let database = &mut self.database;
+
+        let encoded_data = database
+            .get(&self.current_hash)
+            .ok()
+            .flatten()
+            .expect(&format!("Hash {} has no data in DB!", &self.current_hash));
+
+        let (block, _len): (Block, usize) =
+            bincode::decode_from_slice(&encoded_data, config::standard()).expect(&format!(
+                "Fail to decode data from DB, hash {}",
+                &self.current_hash
+            ));
+
+        let prev_hash = block.prev_hash.clone();
+        self.current_hash = String::from_utf8(prev_hash).unwrap();
+        Some(block)
     }
 }
