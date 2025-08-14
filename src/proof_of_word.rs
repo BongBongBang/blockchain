@@ -58,9 +58,9 @@ impl<'a> ProofOfWork<'a> {
         }
     }
 
-    pub fn validate(&self, block: &Block) -> bool {
+    pub fn validate(&self) -> bool {
 
-        let nonce = block.nonce;
+        let nonce = self.block.nonce;
         let data_to_hash = &self.init_data(&nonce);
         let mut hasher = sha2::Sha256::new();
         hasher.update(data_to_hash);
