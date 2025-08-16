@@ -1,7 +1,17 @@
-use crate::{block, blockchain, proof_of_word::ProofOfWork};
+use clap::Parser;
+
+use crate::{blockchain, proof_of_word::ProofOfWork};
+
+#[derive(Parser, Debug)]
+pub struct Cli {
+    #[arg(index = 1)]
+    pub operation: String,
+    #[arg(short = 'd', long = "data")]
+    pub block_data: String
+}
 
 pub struct CommandLine<'a> {
-    blockchain: &'a mut blockchain::Blockchain
+    pub blockchain: &'a mut blockchain::Blockchain
 }
 
 impl<'a> CommandLine<'a> {

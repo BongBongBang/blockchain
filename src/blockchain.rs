@@ -1,11 +1,10 @@
 use bincode::config;
 use readb::{Database, DatabaseSettings};
-use serde_json::map::Iter;
 use std::path::PathBuf;
 
 use crate::block::Block;
 
-const DB_PATH: &str = "./tmp/blocks";
+const DB_PATH: &str = "./blocks";
 const LATEST_HASH_KEY: &str = "lsh";
 
 pub struct Blockchain {
