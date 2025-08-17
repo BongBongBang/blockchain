@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose, Engine};
 use clap::{Parser, ValueEnum};
 
 use crate::{blockchain, proof_of_word::ProofOfWork};
@@ -57,10 +58,10 @@ impl<'a> CommandLine<'a> {
         loop {
             if let Some(block) = &iter.next() {
                 println!("Prev hash: {:?}", &block.prev_hash);
-                println!("Data: {:?}", &block.data);
+                println!("Data: {:?}", general_purpose::STANDARD.encode(&block.data));
                 println!("Hash: {:?}", &block.hash);
                 let pow = ProofOfWork::new(&block);
-                println!("Pow: {:?}", pow.validate());
+                println!("Pow: {:?}\n\n", pow.validate());
             } else {
                 println!("Iterate all block!");
                 break;

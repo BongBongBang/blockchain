@@ -40,11 +40,11 @@ impl Blockchain {
         } else {
             // init without block-data in DB
             let genesis_block = Block::genesis();
-
-            let block_key = genesis_block.hash.clone();
             let encoded_block = bincode::encode_to_vec(&genesis_block, config::standard())
                 .ok()
                 .expect("Failed to init blockchain cause encoding genesis block error");
+
+            let block_key = genesis_block.hash.clone();
             db_client
                 .put(&block_key, &encoded_block)
                 .expect("Failed to save genesis block");
@@ -54,12 +54,12 @@ impl Blockchain {
                     LATEST_HASH_KEY,
                     &general_purpose::STANDARD
                         .decode(block_key)
-                        .expect("Failed to decode genesis's hash str to bytes"),
+                        .expect("Failed to decode genesis block's hash to hex str"),
                 )
                 .expect("Failed to put genesis block into DB");
             db_client
                 .persist()
-                .expect("Failed to persist genesis block");
+                .expect("Failed to store genesis block data !!!");
             return Blockchain {
                 latest_hash: genesis_block.hash,
                 database: db_client,
@@ -73,7 +73,7 @@ impl Blockchain {
             .get(LATEST_HASH_KEY)
             .ok()
             .flatten()
-            .expect("Failed to add_block cause there isn't latest hash in DB");
+            .expect("Failed to add_block cause there isn't  latest hash in DB");
 
         let block = Block::create_block(general_purpose::STANDARD.encode(lsh), data);
         database
@@ -90,11 +90,14 @@ impl Blockchain {
             .expect("Failed to encode new added block");
         database
             .put(
-                &block.hash,
+                &general_purpose::STANDARD.encode(block.hash),
                 &encoded_block,
             )
             .expect("Failed to save new added block");
-        database.persist().expect("Failed to persis added block");
+
+        database
+            .persist()
+            .expect("Failed to store added block data !!!");
     }
 
     pub fn iterator<'a>(&'a mut self) -> Iterator<'a> {
@@ -110,6 +113,14 @@ impl Blockchain {
         }
     }
 }
+
+// impl Drop for Blockchain {
+//     fn drop(&mut self) {
+//         self.database
+//             .persist()
+//             .expect("Failed to persist blockchain data !!!");
+//     }
+// }
 
 impl<'a> Iterator<'a> {
     pub fn next(&mut self) -> Option<Block> {
@@ -131,7 +142,7 @@ impl<'a> Iterator<'a> {
             ));
 
         let prev_hash = block.prev_hash.clone();
-        self.current_hash = general_purpose::STANDARD.encode(prev_hash);
+        self.current_hash = prev_hash;
         Some(block)
     }
 }
