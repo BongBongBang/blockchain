@@ -8,28 +8,28 @@ use crate::proof_of_word::{ProofOfWork};
 
 #[derive(Debug, Serialize, Deserialize, Encode, Decode)]
 pub struct Block {
-    pub prev_hash: Vec<u8>,
+    pub prev_hash: String,
     pub data: Vec<u8>,
-    pub hash: Vec<u8>,
+    pub hash: String,
     pub nonce: u32
 }
 
 impl Block {
 
     pub fn genesis() -> Self {
-        Block::create_block(Vec::default(), String::from("Genesis Block"))
+        Block::create_block(String::default(), String::from("Genesis Block"))
     }
 
-    pub fn new(prev_hash: Vec<u8>, data: String) -> Self {
+    pub fn new(prev_hash: String, data: String) -> Self {
         Block::create_block(prev_hash, data)
     }
 
-    pub fn create_block(prev_hash: Vec<u8>, data: String) -> Self {
+    pub fn create_block(prev_hash: String, data: String) -> Self {
         // todo: return the solid block, refresh nonce if has traversed it all.
         let mut new_block = Block {
             prev_hash,
             data: data.into_bytes(),
-            hash: Vec::default(),
+            hash: String::default(),
             nonce: u32::default()
         };
 

@@ -1,4 +1,4 @@
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use bincode::config;
 use readb::{Database, DatabaseSettings};
 use std::path::PathBuf;
@@ -9,7 +9,7 @@ const DB_PATH: &str = "./blocks";
 const LATEST_HASH_KEY: &str = "lsh";
 
 pub struct Blockchain {
-    pub latest_hash: Vec<u8>,
+    pub latest_hash: String,
     pub database: readb::DefaultDatabase,
 }
 
@@ -34,7 +34,7 @@ impl Blockchain {
         // init blockchain with latest_hash value in DB
         if let Some(lsh) = lsh_value.ok().flatten() {
             Blockchain {
-                latest_hash: lsh,
+                latest_hash: general_purpose::STANDARD.encode(lsh),
                 database: db_client,
             }
         } else {
@@ -67,14 +67,24 @@ impl Blockchain {
             .flatten()
             .expect("Failed to add_block cause there isn't  latest hash in DB");
 
-        let block = Block::create_block(lsh, data);
+        let block = Block::create_block(general_purpose::STANDARD.encode(lsh), data);
         database
-            .put(LATEST_HASH_KEY, &block.hash)
+            .put(
+                LATEST_HASH_KEY,
+                &general_purpose::STANDARD
+                    .decode(&block.hash)
+                    .unwrap_or_else(|_e| {
+                        panic!("Fail to decode hash: {:?}", &block.hash);
+                    }),
+            )
             .expect("Failed to save added block");
         let encoded_block = bincode::encode_to_vec(&block, config::standard())
             .expect("Failed to encode new added block");
         database
-            .put(&general_purpose::STANDARD.encode(block.hash), &encoded_block)
+            .put(
+                &general_purpose::STANDARD.encode(block.hash),
+                &encoded_block,
+            )
             .expect("Failed to save new added block");
     }
 
@@ -82,7 +92,7 @@ impl Blockchain {
         if let Some(lsh) = self.database.get(LATEST_HASH_KEY).ok().flatten() {
             return Iterator {
                 database: &mut self.database,
-                current_hash: general_purpose::STANDARD.encode(lsh)
+                current_hash: general_purpose::STANDARD.encode(lsh),
             };
         }
         Iterator {

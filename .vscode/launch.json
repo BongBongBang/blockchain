@@ -19,9 +19,17 @@
                     "kind": "bin"
                 }
             },
-            "args": ["print-chain"],
+            "args": [
+                "add",
+                "--data", "12222"
+            ],
             "cwd": "${workspaceFolder}",
-            "sourceLanguages": ["rust"]
+            "sourceLanguages": [
+                "rust"
+            ],
+            "env": {
+                "RUST_BACKTRACE": "1"
+            }
         },
         {
             "type": "lldb",
@@ -41,7 +49,9 @@
             },
             "args": [],
             "cwd": "${workspaceFolder}",
-            "sourceLanguages": ["rust"]
+            "sourceLanguages": [
+                "rust"
+            ]
         }
     ]
 }
