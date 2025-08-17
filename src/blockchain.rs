@@ -57,9 +57,9 @@ impl Blockchain {
                         .expect("Failed to decode genesis block's hash to hex str"),
                 )
                 .expect("Failed to put genesis block into DB");
-            db_client
-                .persist()
-                .expect("Failed to store genesis block data !!!");
+            // db_client
+            //     .persist()
+            //     .expect("Failed to store genesis block data !!!");
             return Blockchain {
                 latest_hash: genesis_block.hash,
                 database: db_client,
@@ -90,7 +90,7 @@ impl Blockchain {
             .expect("Failed to encode new added block");
         database
             .put(
-                &general_purpose::STANDARD.encode(block.hash),
+                &block.hash,
                 &encoded_block,
             )
             .expect("Failed to save new added block");
