@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose, Engine};
 use bincode::config;
 use readb::{Database, DatabaseSettings};
 use std::path::PathBuf;
@@ -43,8 +44,7 @@ impl Blockchain {
                 .ok()
                 .expect("Failed to init blockchain cause encoding genesis block error");
 
-            let block_key = String::from_utf8(genesis_block.hash.clone())
-                .expect("Failed to create genesis block db-key");
+            let block_key = general_purpose::STANDARD.encode(genesis_block.hash.clone());
             db_client
                 .put(&block_key, &encoded_block)
                 .expect("Failed to save genesis block");
@@ -74,7 +74,7 @@ impl Blockchain {
         let encoded_block = bincode::encode_to_vec(&block, config::standard())
             .expect("Failed to encode new added block");
         database
-            .put(&String::from_utf8(block.hash).unwrap(), &encoded_block)
+            .put(&general_purpose::STANDARD.encode(block.hash), &encoded_block)
             .expect("Failed to save new added block");
     }
 
@@ -82,8 +82,7 @@ impl Blockchain {
         if let Some(lsh) = self.database.get(LATEST_HASH_KEY).ok().flatten() {
             return Iterator {
                 database: &mut self.database,
-                current_hash: String::from_utf8(lsh)
-                    .expect("Failed to create string from latest hash"),
+                current_hash: general_purpose::STANDARD.encode(lsh)
             };
         }
         Iterator {
@@ -113,7 +112,7 @@ impl<'a> Iterator<'a> {
             ));
 
         let prev_hash = block.prev_hash.clone();
-        self.current_hash = String::from_utf8(prev_hash).unwrap();
+        self.current_hash = general_purpose::STANDARD.encode(prev_hash);
         Some(block)
     }
 }

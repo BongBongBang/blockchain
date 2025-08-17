@@ -1,5 +1,6 @@
 use core::panic;
 
+use base64::{engine::general_purpose, Engine};
 use bincode::{Decode, Encode};
 use serde_derive::{Deserialize, Serialize};
 
@@ -46,7 +47,8 @@ impl Block {
             None => {
                 let mut err_msg = String::with_capacity(128);
                 err_msg.push_str("Failed to calcute proof of work for block, prev_hash: ");
-                err_msg.push_str(&String::from_utf8(new_block.prev_hash).unwrap());
+                let prev_hash_str = general_purpose::STANDARD.encode(new_block.prev_hash);
+                err_msg.push_str(&prev_hash_str);
                 panic!("{}", err_msg);
             }
         }
