@@ -4,7 +4,9 @@ use crate::{blockchain, proof_of_word::ProofOfWork};
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum CliOperation {
+    #[clap(rename_all="kebab-case")]
     Add,
+    #[clap(rename_all="kebab-case")]
     PrintChain,
     Help
 }
@@ -61,6 +63,7 @@ impl<'a> CommandLine<'a> {
                 println!("Pow: {:?}", pow.validate());
             } else {
                 println!("Iterate all block!");
+                break;
             }
         }
     }
