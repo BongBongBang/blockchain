@@ -3,6 +3,7 @@ mod block;
 mod blockchain;
 mod cli;
 mod proof_of_word;
+mod transaction;
 
 use clap::Parser;
 

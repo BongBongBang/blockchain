@@ -13,6 +13,15 @@ pub struct Blockchain {
     pub database: readb::DefaultDatabase,
 }
 
+impl std::fmt::Debug for Blockchain {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Blockchain")
+            .field("latest_hash", &self.latest_hash)
+            .field("database", &"non-debuggable")
+            .finish()
+    }
+}
+
 pub struct Iterator<'a> {
     pub database: &'a mut readb::DefaultDatabase,
     pub current_hash: String,
@@ -89,10 +98,7 @@ impl Blockchain {
         let encoded_block = bincode::encode_to_vec(&block, config::standard())
             .expect("Failed to encode new added block");
         database
-            .put(
-                &block.hash,
-                &encoded_block,
-            )
+            .put(&block.hash, &encoded_block)
             .expect("Failed to save new added block");
 
         database
