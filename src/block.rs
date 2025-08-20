@@ -2,33 +2,37 @@ use core::panic;
 
 use base64::{engine::general_purpose, Engine};
 use bincode::{Decode, Encode};
-use serde_derive::{Deserialize, Serialize};
 
-use crate::proof_of_word::{ProofOfWork};
+use crate::{proof_of_word::ProofOfWork, transaction::Transaction};
 
-#[derive(Debug, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, Encode, Decode)]
 pub struct Block {
     pub prev_hash: String,
-    pub data: Vec<u8>,
+    pub transactions: Vec<Transaction>,
     pub hash: String,
     pub nonce: u32
 }
 
 impl Block {
 
-    pub fn genesis() -> Self {
-        Block::create_block(String::default(), String::from("Genesis Block"))
+    pub fn genesis(tx: Transaction) -> Self {
+        Block::create_block(String::default(), vec![tx])
     }
 
-    pub fn new(prev_hash: String, data: String) -> Self {
-        Block::create_block(prev_hash, data)
+    pub fn hash_transactions(&self) -> Vec<u8> {
+        let mut result = Vec::default();
+        for tx in &self.transactions {
+            result.extend(&mut tx.id);
+        }
+
+        result
     }
 
-    pub fn create_block(prev_hash: String, data: String) -> Self {
+    pub fn create_block(prev_hash: String, transactions: Vec<Transaction>) -> Self {
         // todo: return the solid block, refresh nonce if has traversed it all.
         let mut new_block = Block {
             prev_hash,
-            data: data.into_bytes(),
+            transactions,
             hash: String::default(),
             nonce: u32::default()
         };

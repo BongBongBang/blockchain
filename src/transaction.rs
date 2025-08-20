@@ -1,20 +1,24 @@
+use bincode::config::standard;
+use bincode::{Decode, Encode};
+use sha2::Digest;
+
 use crate::blockchain::Blockchain;
 
-pub struct Transaction<'a> {
+#[derive(Debug, Encode, Decode)]
+pub struct Transaction {
     pub id: Vec<u8>,
     pub inputs: Vec<TxInput>,
     pub outputs: Vec<TxOutput>,
-    pub blockchain: &'a Blockchain,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Encode, Decode)]
 pub struct TxInput {
     pub tx_id: Vec<u8>,
     pub out_idx: u32,
     pub sig: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Encode, Decode)]
 pub struct TxOutput {
     pub amount: u128,
     pub pub_key: String,
@@ -45,34 +49,40 @@ impl TxInput {
     }
 }
 
-impl<'a> Transaction<'a> {
-    // todo:
-    pub fn set_id(&self) {}
+impl Transaction {
+    pub fn set_id(&mut self) {
+        let id_bytes = bincode::encode_to_vec(&*self, standard())
+            .expect("Failed to encode Transaction instance.");
+
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(&id_bytes);
+        self.id = hasher.finalize().to_vec();
+    }
 
     pub fn is_coinbase(&self) -> bool {
         self.inputs.len() == 1 && self.inputs[0].tx_id.len() == 0 && self.inputs[0].out_idx == 0
     }
 
-    pub fn coinbase_tx(to: String, chain: &'a Blockchain) -> Self {
+    pub fn coinbase_tx(to: String) -> Self {
         let tx_input = TxInput::new(Vec::default(), 0, String::from("Coinbase Transaction"));
         let tx_output = TxOutput::new(100, to.clone());
         let tx = Transaction {
             id: Vec::default(),
             inputs: vec![tx_input],
             outputs: vec![tx_output],
-            blockchain: chain,
-        };
-        tx
-    }
-
-    pub fn new(from: String, to: String, amount: u128, chain: &'a Blockchain) -> Self {
-        let tx = Transaction {
-            id: vec![],
-            inputs: vec![tx_input],
-            outputs: vec![tx_output],
-            blockchain: chain,
         };
 
         tx
     }
+
+    // pub fn new(from: String, to: String, amount: u128, chain: &'a Blockchain) -> Self {
+    // let tx = Transaction {
+    //     id: vec![],
+    //     inputs: vec![tx_input],
+    //     outputs: vec![tx_output],
+    //     blockchain: chain,
+    // };
+
+    // tx
+    // }
 }

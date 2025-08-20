@@ -1,5 +1,5 @@
 use base64::{Engine, engine::general_purpose};
-use bincode::config;
+use bincode::{config, Encode};
 use readb::{Database, DatabaseSettings};
 use std::path::PathBuf;
 
@@ -11,6 +11,13 @@ const LATEST_HASH_KEY: &str = "lsh";
 pub struct Blockchain {
     pub latest_hash: String,
     pub database: readb::DefaultDatabase,
+}
+
+impl Encode for Blockchain {
+    fn encode<E: bincode::enc::Encoder>(&self, encoder: &mut E) -> Result<(), bincode::error::EncodeError> {
+        self.latest_hash.encode(encoder)?;
+        Ok(())
+    }
 }
 
 impl std::fmt::Debug for Blockchain {
@@ -119,14 +126,6 @@ impl Blockchain {
         }
     }
 }
-
-// impl Drop for Blockchain {
-//     fn drop(&mut self) {
-//         self.database
-//             .persist()
-//             .expect("Failed to persist blockchain data !!!");
-//     }
-// }
 
 impl<'a> Iterator<'a> {
     pub fn next(&mut self) -> Option<Block> {

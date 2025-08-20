@@ -20,14 +20,14 @@ impl<'a> ProofOfWork<'a> {
         ProofOfWork { target, block }
     }
 
-    pub fn init_data(&self, nonce: &u32) -> Vec<u8> {
+    pub fn init_data(&mut self, nonce: &u32) -> Vec<u8> {
         // prev_hash data nonce difficulty
         let mut hash: Vec<u8> = Vec::new();
         let prev_hash_bytes = general_purpose::STANDARD
             .decode(&self.block.prev_hash)
             .expect("Fail to decode prev_hash_str");
         hash.extend(prev_hash_bytes);
-        hash.extend(&self.block.data);
+        hash.extend(&self.block.hash_transactions());
         hash.extend(nonce.to_be_bytes());
         hash.extend(DIFFICULTY.to_be_bytes());
 
