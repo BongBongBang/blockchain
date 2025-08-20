@@ -1,7 +1,7 @@
 use base64::{engine::general_purpose, Engine};
 use clap::{Parser, ValueEnum};
 
-use crate::{blockchain, proof_of_word::ProofOfWork};
+use crate::{blockchain, proof_of_work::ProofOfWork};
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum CliOperation {

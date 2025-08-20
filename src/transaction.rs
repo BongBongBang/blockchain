@@ -2,7 +2,6 @@ use bincode::config::standard;
 use bincode::{Decode, Encode};
 use sha2::Digest;
 
-use crate::blockchain::Blockchain;
 
 #[derive(Debug, Encode, Decode)]
 pub struct Transaction {

@@ -1,9 +1,15 @@
 use base64::{Engine, engine::general_purpose};
-use bincode::{config, Encode};
+use bincode::{Encode, config};
 use readb::{Database, DatabaseSettings};
-use std::path::PathBuf;
+use std::{
+    fs::{self, exists},
+    path::{Path, PathBuf},
+};
 
-use crate::block::Block;
+use crate::{
+    block::Block,
+    transaction::{self, Transaction},
+};
 
 const DB_PATH: &str = "./blocks";
 const LATEST_HASH_KEY: &str = "lsh";
@@ -14,7 +20,10 @@ pub struct Blockchain {
 }
 
 impl Encode for Blockchain {
-    fn encode<E: bincode::enc::Encoder>(&self, encoder: &mut E) -> Result<(), bincode::error::EncodeError> {
+    fn encode<E: bincode::enc::Encoder>(
+        &self,
+        encoder: &mut E,
+    ) -> Result<(), bincode::error::EncodeError> {
         self.latest_hash.encode(encoder)?;
         Ok(())
     }
@@ -29,13 +38,19 @@ impl std::fmt::Debug for Blockchain {
     }
 }
 
-pub struct Iterator<'a> {
-    pub database: &'a mut readb::DefaultDatabase,
-    pub current_hash: String,
-}
-
 impl Blockchain {
-    pub fn init() -> Self {
+    // 本地数据库是否存在
+    fn exists_db() -> bool {
+        let db_path = PathBuf::from(DB_PATH);
+        fs::exists(db_path).unwrap()
+    }
+
+    /// 从本地数据库文件初始化区块链
+    pub fn continue_chain() -> Self {
+        if !Blockchain::exists_db() {
+            panic!("Blockchain DB doesn't exist, init one first!");
+        }
+
         let db_path = PathBuf::from(DB_PATH);
         let database_config = DatabaseSettings {
             path: Some(db_path),
@@ -47,40 +62,57 @@ impl Blockchain {
         let mut db_client = readb::DefaultDatabase::new(database_config);
         let lsh_value = db_client.get(LATEST_HASH_KEY);
 
-        // init blockchain with latest_hash value in DB
         if let Some(lsh) = lsh_value.ok().flatten() {
             Blockchain {
                 latest_hash: general_purpose::STANDARD.encode(lsh),
                 database: db_client,
             }
         } else {
-            // init without block-data in DB
-            let genesis_block = Block::genesis();
-            let encoded_block = bincode::encode_to_vec(&genesis_block, config::standard())
-                .ok()
-                .expect("Failed to init blockchain cause encoding genesis block error");
-
-            let block_key = genesis_block.hash.clone();
-            db_client
-                .put(&block_key, &encoded_block)
-                .expect("Failed to save genesis block");
-
-            db_client
-                .put(
-                    LATEST_HASH_KEY,
-                    &general_purpose::STANDARD
-                        .decode(block_key)
-                        .expect("Failed to decode genesis block's hash to hex str"),
-                )
-                .expect("Failed to put genesis block into DB");
-            // db_client
-            //     .persist()
-            //     .expect("Failed to store genesis block data !!!");
-            return Blockchain {
-                latest_hash: genesis_block.hash,
-                database: db_client,
-            };
+            panic!("Blockchain latest hash doesn't exist, init blockchain first!");
         }
+    }
+    pub fn init() -> Self {
+        let db_path = PathBuf::from(DB_PATH);
+        if db_path.exists() {
+            panic!("Blockchain has already existed, just continue it!");
+        }
+
+        let database_config = DatabaseSettings {
+            path: Some(db_path),
+            index_type: readb::IndexType::HashMap,
+            cache_size: None,
+            create_path: false,
+        };
+
+        let mut db_client = readb::DefaultDatabase::new(database_config);
+
+        // init without block-data in DB
+        let coinbase_tx = Transaction::coinbase_tx();
+        let genesis_block = Block::genesis();
+        let encoded_block = bincode::encode_to_vec(&genesis_block, config::standard())
+            .ok()
+            .expect("Failed to init blockchain cause encoding genesis block error");
+
+        let block_key = genesis_block.hash.clone();
+        db_client
+            .put(&block_key, &encoded_block)
+            .expect("Failed to save genesis block");
+
+        db_client
+            .put(
+                LATEST_HASH_KEY,
+                &general_purpose::STANDARD
+                    .decode(block_key)
+                    .expect("Failed to decode genesis block's hash to hex str"),
+            )
+            .expect("Failed to put genesis block into DB");
+        // db_client
+        //     .persist()
+        //     .expect("Failed to store genesis block data !!!");
+        return Blockchain {
+            latest_hash: genesis_block.hash,
+            database: db_client,
+        };
     }
 
     pub fn add_block(&mut self, data: String) {
@@ -125,6 +157,11 @@ impl Blockchain {
             current_hash: String::default(),
         }
     }
+}
+
+pub struct Iterator<'a> {
+    pub database: &'a mut readb::DefaultDatabase,
+    pub current_hash: String,
 }
 
 impl<'a> Iterator<'a> {

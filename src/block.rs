@@ -1,31 +1,21 @@
 use core::panic;
 
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use bincode::{Decode, Encode};
 
-use crate::{proof_of_word::ProofOfWork, transaction::Transaction};
+use crate::{proof_of_work::ProofOfWork, transaction::Transaction};
 
 #[derive(Debug, Encode, Decode)]
 pub struct Block {
     pub prev_hash: String,
     pub transactions: Vec<Transaction>,
     pub hash: String,
-    pub nonce: u32
+    pub nonce: u32,
 }
 
 impl Block {
-
-    pub fn genesis(tx: Transaction) -> Self {
-        Block::create_block(String::default(), vec![tx])
-    }
-
-    pub fn hash_transactions(&self) -> Vec<u8> {
-        let mut result = Vec::default();
-        for tx in &self.transactions {
-            result.extend(&mut tx.id);
-        }
-
-        result
+    pub fn genesis(coinbase: Transaction) -> Self {
+        Block::create_block(String::default(), vec![coinbase])
     }
 
     pub fn create_block(prev_hash: String, transactions: Vec<Transaction>) -> Self {
@@ -34,7 +24,7 @@ impl Block {
             prev_hash,
             transactions,
             hash: String::default(),
-            nonce: u32::default()
+            nonce: u32::default(),
         };
 
         // do the proof of work
@@ -47,7 +37,7 @@ impl Block {
                 new_block.nonce = nonce;
                 new_block.hash = hash;
                 return new_block;
-            },
+            }
             None => {
                 let mut err_msg = String::with_capacity(128);
                 err_msg.push_str("Failed to calcute proof of work for block, prev_hash: ");
@@ -56,5 +46,14 @@ impl Block {
                 panic!("{}", err_msg);
             }
         }
+    }
+
+    pub fn hash_transactions(&self) -> Vec<u8> {
+        let mut result = Vec::default();
+        for tx in &self.transactions {
+            result.extend(&mut tx.id);
+        }
+
+        result
     }
 }

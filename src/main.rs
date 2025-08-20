@@ -2,7 +2,7 @@
 mod block;
 mod blockchain;
 mod cli;
-mod proof_of_word;
+mod proof_of_work;
 mod transaction;
 
 use clap::Parser;

@@ -20,7 +20,7 @@ impl<'a> ProofOfWork<'a> {
         ProofOfWork { target, block }
     }
 
-    pub fn init_data(&mut self, nonce: &u32) -> Vec<u8> {
+    pub fn init_data(&self, nonce: &u32) -> Vec<u8> {
         // prev_hash data nonce difficulty
         let mut hash: Vec<u8> = Vec::new();
         let prev_hash_bytes = general_purpose::STANDARD
