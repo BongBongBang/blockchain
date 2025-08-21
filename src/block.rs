@@ -1,6 +1,4 @@
 use core::panic;
-
-use base64::{Engine, engine::general_purpose};
 use bincode::{Decode, Encode};
 
 use crate::{proof_of_work::ProofOfWork, transaction::Transaction};
@@ -41,8 +39,8 @@ impl Block {
             None => {
                 let mut err_msg = String::with_capacity(128);
                 err_msg.push_str("Failed to calcute proof of work for block, prev_hash: ");
-                let prev_hash_str = general_purpose::STANDARD.encode(new_block.prev_hash);
-                err_msg.push_str(&prev_hash_str);
+                let prev_hash = hex::encode(new_block.prev_hash);
+                err_msg.push_str(&prev_hash);
                 panic!("{}", err_msg);
             }
         }
@@ -51,7 +49,7 @@ impl Block {
     pub fn hash_transactions(&self) -> Vec<u8> {
         let mut result = Vec::default();
         for tx in &self.transactions {
-            result.extend(&mut tx.id);
+            result.extend(&tx.id);
         }
 
         result

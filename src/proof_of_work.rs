@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 use crate::block::Block;
-use base64::{Engine, engine::general_purpose};
 use ethereum_types::U256;
 use sha2::{Digest, Sha256};
 
@@ -23,9 +22,8 @@ impl<'a> ProofOfWork<'a> {
     pub fn init_data(&self, nonce: &u32) -> Vec<u8> {
         // prev_hash data nonce difficulty
         let mut hash: Vec<u8> = Vec::new();
-        let prev_hash_bytes = general_purpose::STANDARD
-            .decode(&self.block.prev_hash)
-            .expect("Fail to decode prev_hash_str");
+        let prev_hash_bytes = hex::decode(&self.block.prev_hash)
+            .expect("Failed to decode block's prev_hash from hex string");
         hash.extend(prev_hash_bytes);
         hash.extend(&self.block.hash_transactions());
         hash.extend(nonce.to_be_bytes());
@@ -54,7 +52,7 @@ impl<'a> ProofOfWork<'a> {
         };
 
         match hash {
-            Some(hash) => Some((nonce, general_purpose::STANDARD.encode(hash))),
+            Some(hash) => Some((nonce, hex::encode(hash))),
             None => None,
         }
     }
