@@ -13,7 +13,7 @@ pub struct Transaction {
 #[derive(Debug, Encode, Decode)]
 pub struct TxInput {
     pub tx_id: Vec<u8>,
-    pub out_idx: u32,
+    pub out_idx: usize,
     pub sig: String,
 }
 

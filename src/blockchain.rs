@@ -1,10 +1,15 @@
 use bincode::{Encode, config};
 use readb::{Database, DatabaseSettings};
 use std::{
-    collections::HashMap, fs::{self}, path::PathBuf
+    collections::HashMap,
+    fs::{self},
+    path::PathBuf,
 };
 
-use crate::{block::{self, Block}, transaction::{Transaction, TxOutput}};
+use crate::{
+    block::{self, Block},
+    transaction::{self, Transaction, TxOutput},
+};
 
 const DB_PATH: &str = "./blocks";
 const LATEST_HASH_KEY: &str = "lsh";
@@ -159,32 +164,45 @@ impl Blockchain {
     }
 
     // 寻找所有未花费的transaction
-    pub fn find_unspent_tx(&mut self) -> Vec<Transaction> {
+    pub fn find_unspent_tx(&mut self, address: &'static str) -> Vec<Transaction> {
         let mut iter = self.iterator();
 
-        let unspent_tx = Vec::default();
-        let spent_txos: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut unspent_tx = Vec::default();
+        let mut spent_txos: HashMap<String, Vec<usize>> = HashMap::new();
 
         // block layer
         while let Some(block) = iter.next() {
-
             // transaction layer
-            for tx in block.transactions {
-                let tx_id = hex::encode(tx.id);
-                
+            'transaction: for tx in block.transactions {
+                let tx_id = hex::encode(&tx.id);
+
                 // output layer
                 for (out_idx, output) in tx.outputs.iter().enumerate() {
-
                     if spent_txos.contains_key(&tx_id) {
-                        
                         let out_idxes = spent_txos.get(&tx_id).unwrap();
-                        if out_idxes.contains(x)
-
+                        // 如果这个out_idx的output已经被花费掉了
+                        if out_idxes.contains(&out_idx) {
+                            continue;
                         }
-
-
                     } else {
-
+                        // 当前tx没有被input引用过
+                        // 判断当前Output是否属于目标用户
+                        if output.belongs(address) {
+                            // 如果不是coinbase，记录所有的input引用
+                            if !tx.is_coinbase() {
+                                for input in &tx.inputs {
+                                    if let Some(out_idxes) = spent_txos.get_mut(&tx_id) {
+                                        out_idxes.push(input.out_idx);
+                                    } else {
+                                        let out_idxes = vec![input.out_idx];
+                                        spent_txos.insert(tx_id.clone(), out_idxes);
+                                    }
+                                }
+                            }
+                            
+                            unspent_tx.push(tx);
+                            continue 'transaction;
+                        }
                     }
                 }
             }
@@ -194,12 +212,10 @@ impl Blockchain {
     }
 
     pub fn find_utxo() -> Vec<TxOutput> {
-
+        vec![]
     }
 
-    pub fn find_spendable_outputs() {
-
-    }
+    pub fn find_spendable_outputs() {}
 }
 
 pub struct Iterator<'a> {
