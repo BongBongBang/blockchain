@@ -2,6 +2,7 @@ use bincode::config::standard;
 use bincode::{Decode, Encode};
 use sha2::Digest;
 
+use crate::blockchain::Blockchain;
 
 #[derive(Debug, Encode, Decode)]
 pub struct Transaction {
@@ -28,13 +29,13 @@ impl TxOutput {
         TxOutput { amount, pub_key }
     }
     // 判断当前output是否归属pub_key
-    pub fn belongs(&self, pub_key: &'static str) -> bool {
+    pub fn belongs(&self, pub_key: &str) -> bool {
         self.pub_key == pub_key
     }
 }
 
 impl TxInput {
-    pub fn new(tx_id: Vec<u8>, out_idx: u32, sig: String) -> Self {
+    pub fn new(tx_id: Vec<u8>, out_idx: usize, sig: String) -> Self {
         TxInput {
             tx_id,
             out_idx,
@@ -74,14 +75,46 @@ impl Transaction {
         tx
     }
 
-    // pub fn new(from: String, to: String, amount: u128, chain: &'a Blockchain) -> Self {
-    // let tx = Transaction {
-    //     id: vec![],
-    //     inputs: vec![tx_input],
-    //     outputs: vec![tx_output],
-    //     blockchain: chain,
-    // };
+    pub fn new(
+        from: &str,
+        to: &str,
+        amount: u128,
+        blockchain: &mut Blockchain,
+    ) -> Self {
+        let (accumulated, valid_outputs) =
+            blockchain
+                .find_spendable_outputs(amount, from)
+                .expect(&format!(
+                    "Address {} does'nt have enough money!",
+                    from
+                ));
 
-    // tx
-    // }
+        let mut inputs = vec![];
+
+        for (tx_id, out_idxes) in valid_outputs {
+            for out_idx in out_idxes {
+                let tx_id_bytes = hex::decode(tx_id.clone()).unwrap();
+                let input = TxInput::new(tx_id_bytes, out_idx, to.to_string());
+                inputs.push(input);
+            }
+        }
+
+        let mut outputs = vec![];
+
+        let to_output = TxOutput::new(amount, to.to_string());
+        outputs.push(to_output);
+
+        if accumulated > amount {
+            let remain_output = TxOutput::new(accumulated - amount, from.to_string());
+            outputs.push(remain_output);
+        }
+
+        let tx = Transaction {
+            id: vec![],
+            inputs: inputs,
+            outputs: outputs,
+        };
+
+        tx
+    }
 }

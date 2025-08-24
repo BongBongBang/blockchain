@@ -1,5 +1,5 @@
 use bincode::{Encode, config};
-use readb::{Database, DatabaseSettings};
+use readb::{Database, DatabaseSettings, DefaultDatabase};
 use std::{
     collections::HashMap,
     fs::{self},
@@ -7,8 +7,7 @@ use std::{
 };
 
 use crate::{
-    block::{self, Block},
-    transaction::{self, Transaction, TxOutput},
+    block::Block, register_exit_callback, transaction::{Transaction, TxOutput}
 };
 
 const DB_PATH: &str = "./blocks";
@@ -56,7 +55,7 @@ impl Blockchain {
             path: Some(db_path),
             index_type: readb::IndexType::HashMap,
             cache_size: None,
-            create_path: true,
+            create_path: false,
         };
 
         let mut db_client = readb::DefaultDatabase::new(database_config);
@@ -71,6 +70,25 @@ impl Blockchain {
             panic!("Blockchain latest hash doesn't exist, init blockchain first!");
         }
     }
+
+    /*
+    初始化数据库链接实例
+     */
+    fn init_db_client(db_path: PathBuf) -> DefaultDatabase {
+        // 初始化数据库
+        let database_config = DatabaseSettings {
+            path: Some(db_path),
+            index_type: readb::IndexType::HashMap,
+            cache_size: None,
+            create_path: true,
+        };
+
+        let db_client = readb::DefaultDatabase::new(database_config);
+
+        register_exit_callback(|| print!("ss"));
+        db_client
+    } 
+
     pub fn init(to: String) -> Self {
         // 判断本地数据库是否存在
         let db_path = PathBuf::from(DB_PATH);
@@ -78,15 +96,7 @@ impl Blockchain {
             panic!("Blockchain has already existed, just continue it!");
         }
 
-        // 初始化数据库
-        let database_config = DatabaseSettings {
-            path: Some(db_path),
-            index_type: readb::IndexType::HashMap,
-            cache_size: None,
-            create_path: false,
-        };
-
-        let mut db_client = readb::DefaultDatabase::new(database_config);
+        let mut db_client = Blockchain::init_db_client(db_path);
 
         // init coinbase & genesis block
         let coinbase_tx = Transaction::coinbase_tx(to);
@@ -100,16 +110,16 @@ impl Blockchain {
             .put(&block_key, &encoded_block)
             .expect("Failed to save genesis block");
 
-        db_client.put(
-            LATEST_HASH_KEY,
-            &hex::decode(block_key.clone()).expect(&format!(
-                "Failed to hex::decode block_key {} to bytes",
-                block_key
-            )),
-        );
+        let hash_bytes = hex::decode(&block_key).expect(&format!(
+            "Failed to hex::decode block_key {} to bytes",
+            block_key
+        ));
+        db_client
+            .put(LATEST_HASH_KEY, &hash_bytes)
+            .expect("Failed to store latest hash");
         // db_client
         //     .persist()
-        //     .expect("Failed to store genesis block data !!!");
+            // .expect("Failed to store genesis block data !!!");
         return Blockchain {
             latest_hash: genesis_block.hash,
             database: db_client,
@@ -164,7 +174,7 @@ impl Blockchain {
     }
 
     // 寻找所有未花费的transaction
-    pub fn find_unspent_tx(&mut self, address: &'static str) -> Vec<Transaction> {
+    pub fn find_unspent_tx(&mut self, address: &str) -> Vec<Transaction> {
         let mut iter = self.iterator();
 
         let mut unspent_tx = Vec::default();
@@ -199,7 +209,7 @@ impl Blockchain {
                                     }
                                 }
                             }
-                            
+
                             unspent_tx.push(tx);
                             continue 'transaction;
                         }
@@ -211,11 +221,67 @@ impl Blockchain {
         unspent_tx
     }
 
-    pub fn find_utxo() -> Vec<TxOutput> {
-        vec![]
+    /*
+     * 寻找某地址所有未支付Output
+     */
+    pub fn find_utxo(&mut self, address: &str) -> Vec<TxOutput> {
+        let unspent_txes = self.find_unspent_tx(address);
+
+        if unspent_txes.len() == 0 {
+            return vec![];
+        }
+
+        let mut utxos = Vec::default();
+        for tx in unspent_txes {
+            for output in tx.outputs {
+                // todo: fix multiple outputs belongs to same address in a Transaction
+                utxos.push(output);
+            }
+        }
+
+        utxos
     }
 
-    pub fn find_spendable_outputs() {}
+    /*
+     * 寻找某地址可以用来支付某金额的Outputs
+     */
+    pub fn find_spendable_outputs(
+        &mut self,
+        amount: u128,
+        address: &str,
+    ) -> Option<(u128, HashMap<String, Vec<usize>>)> {
+        let unspent_txes = self.find_unspent_tx(address);
+
+        let mut accumulated = 0u128;
+        let mut spendable_outputs: HashMap<String, Vec<usize>> = HashMap::new();
+
+        'tx: for tx in &unspent_txes {
+            for (out_idx, output) in tx.outputs.iter().enumerate() {
+                if output.belongs(address) && accumulated < amount {
+                    let tx_id = hex::encode(&tx.id);
+
+                    accumulated += output.amount;
+
+                    if let Some(out_idxes) = spendable_outputs.get_mut(&tx_id) {
+                        out_idxes.push(out_idx);
+                    } else {
+                        let out_idxes = vec![out_idx];
+                        spendable_outputs.insert(tx_id, out_idxes);
+                    }
+
+                    if accumulated > amount {
+                        break 'tx;
+                    }
+                }
+            }
+        }
+
+        if accumulated > amount {
+            Some((accumulated, spendable_outputs))
+        } else {
+            None
+        }
+    }
 }
 
 pub struct Iterator<'a> {

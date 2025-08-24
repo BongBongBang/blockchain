@@ -5,21 +5,51 @@ mod cli;
 mod proof_of_work;
 mod transaction;
 
-use clap::Parser;
+use std::sync::Mutex;
 
-use crate::cli::{CommandLine, CliOperation};
+use once_cell::sync::Lazy;
+
+use crate::cli::CommandLine;
+
+/*
+全局程序结束回调函数变量
+ */
+static EXIT_CALLBACKS: Lazy<Mutex<Vec<Box<dyn FnOnce() + Send>>>> =
+    Lazy::new(|| Mutex::new(Vec::new()));
+
+/*
+注册全局结束回调函数
+ */
+pub fn register_exit_callback<F>(cb: F)
+where
+    F: FnOnce() + Send + 'static,
+{
+    let mut callbacks = EXIT_CALLBACKS.lock().unwrap();
+    callbacks.push(Box::new(cb));
+}
+
+/*
+执行回调函数
+*/
+fn run_exit_callbacks() {
+    let mut cds_guard = EXIT_CALLBACKS.lock().unwrap();
+    while let Some(cb) = cds_guard.pop() {
+        cb();
+    }
+}
+
+/*
+全局程序结束监控器
+ */
+struct AtExitMonitor;
+impl Drop for AtExitMonitor {
+    fn drop(&mut self) {
+        run_exit_callbacks();
+    }
+}
+static _AT_EXIT_MONITOR: Lazy<AtExitMonitor> = Lazy::new(|| AtExitMonitor);
 
 fn main() {
-    let mut blockchain = blockchain::Blockchain::init();
-    let mut command_line = CommandLine {
-        blockchain: &mut blockchain,
-    };
-
-    let cli = cli::Cli::parse();
-    cli.validate_args();
-    match cli.operation {
-        CliOperation::Add => command_line.add_block(cli.block_data.unwrap()),
-        CliOperation::PrintChain => command_line.print_chain(),
-        _ => command_line.print_usage(),
-    }
+    let mut command_line = CommandLine::new();
+    command_line.run();
 }

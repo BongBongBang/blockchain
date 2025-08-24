@@ -20,9 +20,9 @@
                 }
             },
             "args": [
-                "print-chain"
-                // "add",
-                // "--data", "12222"
+                "create-chain",
+                "--address",
+                "aaron"
             ],
             "cwd": "${workspaceFolder}",
             "sourceLanguages": [
