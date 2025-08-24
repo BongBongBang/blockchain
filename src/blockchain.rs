@@ -7,7 +7,9 @@ use std::{
 };
 
 use crate::{
-    block::Block, register_exit_callback, transaction::{Transaction, TxOutput}
+    block::Block,
+    register_exit_callback,
+    transaction::{Transaction, TxOutput},
 };
 
 const DB_PATH: &str = "./blocks";
@@ -51,14 +53,8 @@ impl Blockchain {
         }
 
         let db_path = PathBuf::from(DB_PATH);
-        let database_config = DatabaseSettings {
-            path: Some(db_path),
-            index_type: readb::IndexType::HashMap,
-            cache_size: None,
-            create_path: false,
-        };
 
-        let mut db_client = readb::DefaultDatabase::new(database_config);
+        let mut db_client = Blockchain::init_db_client(db_path);
         let lsh_value = db_client.get(LATEST_HASH_KEY);
 
         if let Some(lsh) = lsh_value.ok().flatten() {
@@ -83,11 +79,11 @@ impl Blockchain {
             create_path: true,
         };
 
-        let db_client = readb::DefaultDatabase::new(database_config);
+        let mut db_client = readb::DefaultDatabase::new(database_config);
 
-        register_exit_callback(|| print!("ss"));
+        register_exit_callback(|| println!("End Callback!"));
         db_client
-    } 
+    }
 
     pub fn init(to: String) -> Self {
         // 判断本地数据库是否存在
@@ -119,7 +115,7 @@ impl Blockchain {
             .expect("Failed to store latest hash");
         // db_client
         //     .persist()
-            // .expect("Failed to store genesis block data !!!");
+        // .expect("Failed to store genesis block data !!!");
         return Blockchain {
             latest_hash: genesis_block.hash,
             database: db_client,

@@ -17,6 +17,8 @@ use crate::cli::CommandLine;
 static EXIT_CALLBACKS: Lazy<Mutex<Vec<Box<dyn FnOnce() + Send>>>> =
     Lazy::new(|| Mutex::new(Vec::new()));
 
+static _AT_EXIT_MONITOR: Lazy<AtExitMonitor> = Lazy::new(|| AtExitMonitor);
+
 /*
 注册全局结束回调函数
  */
@@ -24,6 +26,8 @@ pub fn register_exit_callback<F>(cb: F)
 where
     F: FnOnce() + Send + 'static,
 {
+    // 确保 Guard 至少被初始化一次（这样退出时一定会 drop）
+    Lazy::force(&_AT_EXIT_MONITOR);
     let mut callbacks = EXIT_CALLBACKS.lock().unwrap();
     callbacks.push(Box::new(cb));
 }
@@ -47,9 +51,9 @@ impl Drop for AtExitMonitor {
         run_exit_callbacks();
     }
 }
-static _AT_EXIT_MONITOR: Lazy<AtExitMonitor> = Lazy::new(|| AtExitMonitor);
 
 fn main() {
     let mut command_line = CommandLine::new();
     command_line.run();
+    println!("Main func end");
 }

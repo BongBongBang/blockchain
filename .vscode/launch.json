@@ -20,7 +20,7 @@
                 }
             },
             "args": [
-                "create-chain",
+                "get-balance",
                 "--address",
                 "aaron"
             ],
