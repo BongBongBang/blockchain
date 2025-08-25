@@ -120,12 +120,13 @@ impl CommandLine {
     fn send(&mut self) {
         let mut blockchain = Blockchain::continue_chain();
         let cli_param = &mut self.cli_param;
-        let tx = Transaction::new(
+        let mut tx = Transaction::new(
             &cli_param.from.take().unwrap(),
             &cli_param.to.take().unwrap(),
             cli_param.amount.take().unwrap(),
             &mut blockchain,
         );
+        tx.set_id();
         blockchain.add_block(vec![tx]);
         println!("Succeed sending coin!");
     }

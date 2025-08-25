@@ -29,7 +29,7 @@ impl TxOutput {
         TxOutput { amount, pub_key }
     }
     // 判断当前output是否归属pub_key
-    pub fn belongs(&self, pub_key: &str) -> bool {
+    pub fn belongs_to(&self, pub_key: &str) -> bool {
         self.pub_key == pub_key
     }
 }
@@ -44,7 +44,7 @@ impl TxInput {
     }
 
     // 判断当前input是否是pub_key的来源
-    pub fn tranferred_to(&self, pub_key: &'static str) -> bool {
+    pub fn spent_by(&self, pub_key: &str) -> bool {
         self.sig == pub_key
     }
 }
@@ -60,7 +60,7 @@ impl Transaction {
     }
 
     pub fn is_coinbase(&self) -> bool {
-        self.inputs.len() == 1 && self.inputs[0].tx_id.len() == 0 && self.inputs[0].out_idx == 0
+        self.inputs.len() == 1 && self.inputs[0].tx_id.len() == 0
     }
 
     pub fn coinbase_tx(to: String) -> Self {
@@ -75,26 +75,17 @@ impl Transaction {
         tx
     }
 
-    pub fn new(
-        from: &str,
-        to: &str,
-        amount: u128,
-        blockchain: &mut Blockchain,
-    ) -> Self {
-        let (accumulated, valid_outputs) =
-            blockchain
-                .find_spendable_outputs(amount, from)
-                .expect(&format!(
-                    "Address {} does'nt have enough money!",
-                    from
-                ));
+    pub fn new(from: &str, to: &str, amount: u128, blockchain: &mut Blockchain) -> Self {
+        let (accumulated, valid_outputs) = blockchain
+            .find_spendable_outputs(amount, from)
+            .expect(&format!("Address [{}] does'nt have enough money!", from));
 
         let mut inputs = vec![];
 
         for (tx_id, out_idxes) in valid_outputs {
             for out_idx in out_idxes {
                 let tx_id_bytes = hex::decode(tx_id.clone()).unwrap();
-                let input = TxInput::new(tx_id_bytes, out_idx, to.to_string());
+                let input = TxInput::new(tx_id_bytes, out_idx, from.to_string());
                 inputs.push(input);
             }
         }

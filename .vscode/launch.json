@@ -7,7 +7,39 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'blockchain'",
+            "name": "Send",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=blockchain",
+                    "--package=blockchain"
+                ],
+                "filter": {
+                    "name": "blockchain",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "send",
+                "--from",
+                "aaron",
+                "--to",
+                "tom",
+                "--amount",
+                "10"
+            ],
+            "cwd": "${workspaceFolder}",
+            "sourceLanguages": [
+                "rust"
+            ],
+            "env": {
+                "RUST_BACKTRACE": "1"
+            }
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "GetBalance",
             "cargo": {
                 "args": [
                     "build",
@@ -22,7 +54,7 @@
             "args": [
                 "get-balance",
                 "--address",
-                "aaron"
+                "aaron",
             ],
             "cwd": "${workspaceFolder}",
             "sourceLanguages": [

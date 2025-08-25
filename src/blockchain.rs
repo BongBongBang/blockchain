@@ -4,6 +4,7 @@ use std::{
     collections::HashMap,
     fs::{self},
     path::PathBuf,
+    sync::{Arc, Mutex},
 };
 
 use crate::{
@@ -17,7 +18,7 @@ const LATEST_HASH_KEY: &str = "lsh";
 
 pub struct Blockchain {
     pub latest_hash: String,
-    pub database: readb::DefaultDatabase,
+    pub database: Arc<Mutex<readb::DefaultDatabase>>,
 }
 
 impl Encode for Blockchain {
@@ -54,13 +55,14 @@ impl Blockchain {
 
         let db_path = PathBuf::from(DB_PATH);
 
-        let mut db_client = Blockchain::init_db_client(db_path);
+        let db_client_mutex = Blockchain::init_db_client(db_path);
+        let mut db_client = db_client_mutex.lock().unwrap();
         let lsh_value = db_client.get(LATEST_HASH_KEY);
 
         if let Some(lsh) = lsh_value.ok().flatten() {
             Blockchain {
                 latest_hash: hex::encode(lsh),
-                database: db_client,
+                database: Arc::clone(&db_client_mutex),
             }
         } else {
             panic!("Blockchain latest hash doesn't exist, init blockchain first!");
@@ -70,7 +72,7 @@ impl Blockchain {
     /*
     初始化数据库链接实例
      */
-    fn init_db_client(db_path: PathBuf) -> DefaultDatabase {
+    fn init_db_client(db_path: PathBuf) -> Arc<Mutex<DefaultDatabase>> {
         // 初始化数据库
         let database_config = DatabaseSettings {
             path: Some(db_path),
@@ -79,10 +81,18 @@ impl Blockchain {
             create_path: true,
         };
 
-        let mut db_client = readb::DefaultDatabase::new(database_config);
+        let db_client_mutex = Arc::new(Mutex::new(readb::DefaultDatabase::new(database_config)));
+        let db_client_callback = Arc::clone(&db_client_mutex);
 
-        register_exit_callback(|| println!("End Callback!"));
-        db_client
+        register_exit_callback(move || {
+            db_client_callback
+                .lock()
+                .unwrap()
+                .persist()
+                .expect("Failed to persist readb");
+        });
+
+        db_client_mutex
     }
 
     pub fn init(to: String) -> Self {
@@ -92,10 +102,12 @@ impl Blockchain {
             panic!("Blockchain has already existed, just continue it!");
         }
 
-        let mut db_client = Blockchain::init_db_client(db_path);
+        let db_client_mutex = Blockchain::init_db_client(db_path);
+        let mut db_client = db_client_mutex.lock().unwrap();
 
         // init coinbase & genesis block
-        let coinbase_tx = Transaction::coinbase_tx(to);
+        let mut coinbase_tx = Transaction::coinbase_tx(to);
+        coinbase_tx.set_id();
         let genesis_block = Block::genesis(coinbase_tx);
         let encoded_block = bincode::encode_to_vec(&genesis_block, config::standard())
             .ok()
@@ -118,12 +130,12 @@ impl Blockchain {
         // .expect("Failed to store genesis block data !!!");
         return Blockchain {
             latest_hash: genesis_block.hash,
-            database: db_client,
+            database: Arc::clone(&db_client_mutex),
         };
     }
 
     pub fn add_block(&mut self, transactions: Vec<Transaction>) {
-        let database = &mut self.database;
+        let mut database = self.database.lock().unwrap();
         let lsh_bytes = database
             .get(LATEST_HASH_KEY)
             .ok()
@@ -151,20 +163,21 @@ impl Blockchain {
             .put(&block.hash, &encoded_block)
             .expect("Failed to save new added block");
 
-        database
-            .persist()
-            .expect("Failed to store added block data !!!");
+        // database
+        //     .persist()
+        //     .expect("Failed to store added block data !!!");
     }
 
-    pub fn iterator<'a>(&'a mut self) -> Iterator<'a> {
-        if let Some(lsh) = self.database.get(LATEST_HASH_KEY).ok().flatten() {
+    pub fn iterator(&mut self) -> Iterator {
+        let mut database = self.database.lock().unwrap();
+        if let Some(lsh) = database.get(LATEST_HASH_KEY).ok().flatten() {
             return Iterator {
-                database: &mut self.database,
+                database: Arc::clone(&self.database),
                 current_hash: hex::encode(lsh),
             };
         }
         Iterator {
-            database: &mut self.database,
+            database: Arc::clone(&self.database),
             current_hash: String::default(),
         }
     }
@@ -183,7 +196,7 @@ impl Blockchain {
                 let tx_id = hex::encode(&tx.id);
 
                 // output layer
-                for (out_idx, output) in tx.outputs.iter().enumerate() {
+                for (out_idx, _output) in tx.outputs.iter().enumerate() {
                     if spent_txos.contains_key(&tx_id) {
                         let out_idxes = spent_txos.get(&tx_id).unwrap();
                         // 如果这个out_idx的output已经被花费掉了
@@ -192,23 +205,23 @@ impl Blockchain {
                         }
                     } else {
                         // 当前tx没有被input引用过
-                        // 判断当前Output是否属于目标用户
-                        if output.belongs(address) {
-                            // 如果不是coinbase，记录所有的input引用
-                            if !tx.is_coinbase() {
-                                for input in &tx.inputs {
-                                    if let Some(out_idxes) = spent_txos.get_mut(&tx_id) {
+                        // 如果不是coinbase，记录所有的input引用
+                        if !tx.is_coinbase() {
+                            for input in &tx.inputs {
+                                if input.spent_by(&address) {
+                                    let ref_tx_id = hex::encode(&input.tx_id);
+                                    if let Some(out_idxes) = spent_txos.get_mut(&ref_tx_id) {
                                         out_idxes.push(input.out_idx);
                                     } else {
                                         let out_idxes = vec![input.out_idx];
-                                        spent_txos.insert(tx_id.clone(), out_idxes);
+                                        spent_txos.insert(ref_tx_id, out_idxes);
                                     }
                                 }
                             }
-
-                            unspent_tx.push(tx);
-                            continue 'transaction;
                         }
+
+                        unspent_tx.push(tx);
+                        continue 'transaction;
                     }
                 }
             }
@@ -231,7 +244,9 @@ impl Blockchain {
         for tx in unspent_txes {
             for output in tx.outputs {
                 // todo: fix multiple outputs belongs to same address in a Transaction
-                utxos.push(output);
+                if output.belongs_to(address) {
+                    utxos.push(output);
+                }
             }
         }
 
@@ -253,7 +268,7 @@ impl Blockchain {
 
         'tx: for tx in &unspent_txes {
             for (out_idx, output) in tx.outputs.iter().enumerate() {
-                if output.belongs(address) && accumulated < amount {
+                if output.belongs_to(address) && accumulated < amount {
                     let tx_id = hex::encode(&tx.id);
 
                     accumulated += output.amount;
@@ -280,17 +295,17 @@ impl Blockchain {
     }
 }
 
-pub struct Iterator<'a> {
-    pub database: &'a mut readb::DefaultDatabase,
+pub struct Iterator {
+    pub database: Arc<Mutex<readb::DefaultDatabase>>,
     pub current_hash: String,
 }
 
-impl<'a> Iterator<'a> {
+impl Iterator {
     pub fn next(&mut self) -> Option<Block> {
         if &self.current_hash == "" {
             return None;
         }
-        let database = &mut self.database;
+        let mut database = self.database.lock().unwrap();
 
         let encoded_data = database
             .get(&self.current_hash)

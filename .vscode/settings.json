@@ -1,3 +1,11 @@
 {
-    "dependi.rust.lockFileEnabled": false
+    "dependi.rust.lockFileEnabled": false,
+    "editor.semanticTokenColorCustomizations": {
+        "enabled": true,
+        "rules": {
+            "*.mutable": {
+                "underline": false,
+            }
+        }
+    }
 }
