@@ -4,6 +4,7 @@ mod blockchain;
 mod cli;
 mod proof_of_work;
 mod transaction;
+mod wallet;
 
 use std::sync::Mutex;
 
