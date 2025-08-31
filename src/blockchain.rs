@@ -297,6 +297,21 @@ impl Blockchain {
             None
         }
     }
+
+    pub fn find_transaction(&mut self, tx_id: &Vec<u8>) -> Transaction {
+        let mut iter = self.iterator();
+        while let Some(block) = iter.next() {
+            for tx in block.transactions {
+                if &tx.id == tx_id {
+                    return tx;
+                }
+            }
+        }
+
+        panic!("Transaction: {} doesn't exist", hex::encode(tx_id));
+    }
+
+    pub fn sign_transaction() {}
 }
 
 pub struct Iterator {

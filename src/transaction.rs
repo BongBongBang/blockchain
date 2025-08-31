@@ -136,7 +136,6 @@ impl Transaction {
             panic!("不存在接收钱包: {}", to);
         }
 
-
         let (accumulated, valid_outputs) = blockchain
             .find_spendable_outputs(amount, from)
             .expect(&format!("Address [{}] does'nt have enough money!", from));
