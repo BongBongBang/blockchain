@@ -208,7 +208,11 @@ impl Blockchain {
                         // 如果不是coinbase，记录所有的input引用
                         if !tx.is_coinbase() {
                             for input in &tx.inputs {
-                                if input.spent_by(&address) {
+                                if {
+                                    let this = &input;
+                                    let pub_key_hash = &address;
+                                    &Wallet::hash_pub_key(&this.pub_key) == pub_key_hash
+                                } {
                                     let ref_tx_id = hex::encode(&input.tx_id);
                                     if let Some(out_idxes) = spent_txos.get_mut(&ref_tx_id) {
                                         out_idxes.push(input.out_idx);

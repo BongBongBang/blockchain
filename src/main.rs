@@ -5,6 +5,7 @@ mod cli;
 mod proof_of_work;
 mod transaction;
 mod wallet;
+mod wallets;
 
 use std::sync::Mutex;
 
