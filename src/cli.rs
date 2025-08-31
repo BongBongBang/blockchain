@@ -1,6 +1,6 @@
 use clap::{Parser, ValueEnum};
 
-use crate::{blockchain::Blockchain, cli, proof_of_work::ProofOfWork, transaction::Transaction};
+use crate::{blockchain::Blockchain, cli, proof_of_work::ProofOfWork, transaction::Transaction, wallets::Wallets};
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum CliOperation {
@@ -61,6 +61,8 @@ impl CommandLine {
             CliOperation::CreateChain => self.create_chain(),
             CliOperation::GetBalance => self.get_balance(),
             CliOperation::PrintChain => self.print_chain(),
+            CliOperation::CreateWallet => self.create_chain(),
+            CliOperation::ListAddress => self.get_all_address(),
             CliOperation::Send => self.send(),
             CliOperation::PrintUsage => self.print_chain(),
             _ => {}
@@ -78,6 +80,20 @@ impl CommandLine {
         println!("create-wallet - Creates a new Wallet");
         println!("list-address - Lists the addresses in out wallet file");
     }
+
+    fn create_wallet(&self) {
+        let mut wallets = Wallets::new();
+        let address = wallets.add_wallet();
+        println!("Succeed creating wallet: {}\n", address);
+    }
+
+    fn get_all_address(&self) {
+        let wallets = Wallets::new();
+        for address in wallets.get_all_addresses() {
+            println!("Address: {}", address);
+        }
+    }
+
 
     fn create_chain(&self) {
         Blockchain::init(self.cli_param.address.as_ref().unwrap().to_string());

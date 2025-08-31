@@ -6,7 +6,6 @@ use bincode::{
     error::{DecodeError, EncodeError},
 };
 use k256::{ecdsa::SigningKey, elliptic_curve::rand_core::OsRng, ecdsa::VerifyingKey};
-use k256::ecdsa::signature::Verifier;
 use sha2::{Digest, Sha256};
 
 const VERSION: u8 = 0;
