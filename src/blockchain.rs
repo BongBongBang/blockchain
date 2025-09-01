@@ -1,8 +1,10 @@
 use bincode::{Encode, config};
+use k256::ecdsa::SigningKey;
 use readb::{Database, DatabaseSettings, DefaultDatabase};
 use std::{
     collections::HashMap,
     fs::{self},
+    hash::Hash,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
@@ -11,6 +13,7 @@ use crate::{
     block::Block,
     register_exit_callback,
     transaction::{Transaction, TxOutput},
+    wallet::Wallet,
 };
 
 const DB_PATH: &str = "./blocks";
@@ -183,7 +186,7 @@ impl Blockchain {
     }
 
     // 寻找所有未花费的transaction
-    pub fn find_unspent_tx(&mut self, address: &str) -> Vec<Transaction> {
+    pub fn find_unspent_tx(&mut self, pub_key_hash: &Vec<u8>) -> Vec<Transaction> {
         let mut iter = self.iterator();
 
         let mut unspent_tx = Vec::default();
@@ -195,35 +198,32 @@ impl Blockchain {
             'transaction: for tx in block.transactions {
                 let tx_id = hex::encode(&tx.id);
 
+                // 如果不是coinbase，记录所有的input引用
+                if !tx.is_coinbase() {
+                    for input in &tx.inputs {
+                        if input.spent_by(pub_key_hash) {
+                            let ref_tx_id = hex::encode(&input.tx_id);
+                            if let Some(out_idxes) = spent_txos.get_mut(&ref_tx_id) {
+                                out_idxes.push(input.out_idx);
+                            } else {
+                                let out_idxes = vec![input.out_idx];
+                                spent_txos.insert(ref_tx_id, out_idxes);
+                            }
+                        }
+                    }
+                }
+
                 // output layer
-                for (out_idx, _output) in tx.outputs.iter().enumerate() {
+                for (out_idx, output) in tx.outputs.iter().enumerate() {
                     if spent_txos.contains_key(&tx_id) {
                         let out_idxes = spent_txos.get(&tx_id).unwrap();
                         // 如果这个out_idx的output已经被花费掉了
                         if out_idxes.contains(&out_idx) {
                             continue;
                         }
-                    } else {
-                        // 当前tx没有被input引用过
-                        // 如果不是coinbase，记录所有的input引用
-                        if !tx.is_coinbase() {
-                            for input in &tx.inputs {
-                                if {
-                                    let this = &input;
-                                    let pub_key_hash = &address;
-                                    &Wallet::hash_pub_key(&this.pub_key) == pub_key_hash
-                                } {
-                                    let ref_tx_id = hex::encode(&input.tx_id);
-                                    if let Some(out_idxes) = spent_txos.get_mut(&ref_tx_id) {
-                                        out_idxes.push(input.out_idx);
-                                    } else {
-                                        let out_idxes = vec![input.out_idx];
-                                        spent_txos.insert(ref_tx_id, out_idxes);
-                                    }
-                                }
-                            }
-                        }
+                    }
 
+                    if output.belongs_to(pub_key_hash) {
                         unspent_tx.push(tx);
                         continue 'transaction;
                     }
@@ -237,8 +237,8 @@ impl Blockchain {
     /*
      * 寻找某地址所有未支付Output
      */
-    pub fn find_utxo(&mut self, address: &str) -> Vec<TxOutput> {
-        let unspent_txes = self.find_unspent_tx(address);
+    pub fn find_utxo(&mut self, pub_key_hash: &Vec<u8>) -> Vec<TxOutput> {
+        let unspent_txes = self.find_unspent_tx(pub_key_hash);
 
         if unspent_txes.len() == 0 {
             return vec![];
@@ -248,7 +248,7 @@ impl Blockchain {
         for tx in unspent_txes {
             for output in tx.outputs {
                 // todo: fix multiple outputs belongs to same address in a Transaction
-                if output.belongs_to(address) {
+                if output.belongs_to(pub_key_hash) {
                     utxos.push(output);
                 }
             }
@@ -263,16 +263,16 @@ impl Blockchain {
     pub fn find_spendable_outputs(
         &mut self,
         amount: u128,
-        address: &str,
+        pub_key_hash: &Vec<u8>,
     ) -> Option<(u128, HashMap<String, Vec<usize>>)> {
-        let unspent_txes = self.find_unspent_tx(address);
+        let unspent_txes = self.find_unspent_tx(pub_key_hash);
 
         let mut accumulated = 0u128;
         let mut spendable_outputs: HashMap<String, Vec<usize>> = HashMap::new();
 
         'tx: for tx in &unspent_txes {
             for (out_idx, output) in tx.outputs.iter().enumerate() {
-                if output.belongs_to(address) && accumulated < amount {
+                if output.belongs_to(pub_key_hash) && accumulated < amount {
                     let tx_id = hex::encode(&tx.id);
 
                     accumulated += output.amount;
@@ -298,6 +298,16 @@ impl Blockchain {
         }
     }
 
+    /// 寻找目标Transaction
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut self` (`undefined`)
+    /// - `tx_id` (`&Vec<u8>`) - tx_id
+    ///
+    /// # Returns
+    ///
+    /// - `Transaction` - 事务.
     pub fn find_transaction(&mut self, tx_id: &Vec<u8>) -> Transaction {
         let mut iter = self.iterator();
         while let Some(block) = iter.next() {
@@ -311,7 +321,42 @@ impl Blockchain {
         panic!("Transaction: {} doesn't exist", hex::encode(tx_id));
     }
 
-    pub fn sign_transaction() {}
+    /// 给Tx签名
+    ///
+    /// # Arguments
+    ///
+    /// - `tx` (`&Transaction`) - 待签名的Tx
+    /// - `priv_key` (`&SigningKey`) - 签名的私钥
+    /// # Returns
+    ///
+    pub fn sign_transaction(&mut self, tx_to_sign: &mut Transaction, priv_key: &mut SigningKey) {
+        let mut prev_txs: HashMap<String, Transaction> = HashMap::new();
+        for input in &tx_to_sign.inputs {
+            let tx = self.find_transaction(&input.tx_id);
+            prev_txs.insert(hex::encode(&input.tx_id), tx);
+        }
+
+        tx_to_sign.sign(priv_key, prev_txs);
+    }
+
+    /// 校验某个Tx
+    /// 
+    /// # Returns
+    /// 
+    /// - `bool` - 是否通过校验
+    /// 
+    pub fn verify_transaction(&mut self, tx_to_verify: &Transaction) -> bool {
+
+        let mut prev_txs : HashMap<String, Transaction> = HashMap::default();
+
+        for input in &tx_to_verify.inputs {
+            let tx = self.find_transaction(&input.tx_id);
+            prev_txs.insert(hex::encode(&input.tx_id), tx);
+        }
+
+        tx_to_verify.verity(prev_txs)
+    }
+
 }
 
 pub struct Iterator {

@@ -60,6 +60,10 @@ impl Wallets {
         self.wallets.get(address)
     }
 
+    pub fn get_wallet_mut<'a>(&'a mut self, address: &str) -> Option<&'a mut Wallet> {
+        self.wallets.get_mut(address)
+    }
+
     fn load_file(&mut self) {
         if let Ok(data) = fs::read(WALLET_FILE) {
             if let Ok(decoded) = bincode::decode_from_slice::<Wallets, _>(&data, standard()) {

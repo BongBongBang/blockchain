@@ -13,8 +13,8 @@ const CHECK_SUM_LENGTH: usize = 4;
 
 #[derive(Debug)]
 pub struct Wallet {
-    pub_key: Vec<u8>,
-    priv_key: SigningKey,
+    pub pub_key: Vec<u8>,
+    pub priv_key: SigningKey,
 }
 
 impl Wallet {

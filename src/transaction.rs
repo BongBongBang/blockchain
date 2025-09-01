@@ -1,16 +1,17 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Display;
+use std::ops::Sub;
 
 use base58::FromBase58;
 use bincode::config::standard;
 use bincode::{Decode, Encode};
+use k256::EncodedPoint;
 use k256::ecdsa;
-use k256::ecdsa::signature::SignerMut;
 use k256::ecdsa::Signature;
 use k256::ecdsa::VerifyingKey;
+use k256::ecdsa::signature::SignerMut;
 use k256::ecdsa::signature::Verifier;
-use k256::EncodedPoint;
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -45,7 +46,7 @@ impl TxOutput {
             .from_base58()
             .expect(&format!("Failed to decode address[{}] base58", address));
 
-        let pub_key_hash = &bytes[1..bytes.len().saturating_sub(4)];
+        let pub_key_hash = &bytes[1..bytes.len().sub(4)];
         TxOutput {
             amount,
             pub_key_hash: pub_key_hash.to_vec(),
@@ -124,20 +125,23 @@ impl Transaction {
     }
 
     pub fn new(from: &str, to: &str, amount: u128, blockchain: &mut Blockchain) -> Self {
+        let mut wallets = Wallets::new();
 
-        let wallets = Wallets::new();
-        let from_wallet_op = wallets.get_wallet(from);
+        {
+            let to_wallet_op = wallets.get_wallet(to);
+            if to_wallet_op.is_none() {
+                panic!("不存在接收钱包: {}", to);
+            }
+        }
+
+        let from_wallet_op = wallets.get_wallet_mut(from);
         if from_wallet_op.is_none() {
             panic!("不存在来源钱包: {}", from);
         }
-
-        let to_wallet_op = wallets.get_wallet(to);
-        if to_wallet_op.is_none() {
-            panic!("不存在接收钱包: {}", to);
-        }
+        let from_wallet = from_wallet_op.unwrap();
 
         let (accumulated, valid_outputs) = blockchain
-            .find_spendable_outputs(amount, from)
+            .find_spendable_outputs(amount, &Wallet::hash_pub_key(&from_wallet.pub_key))
             .expect(&format!("Address [{}] does'nt have enough money!", from));
 
         let mut inputs = vec![];
@@ -145,7 +149,12 @@ impl Transaction {
         for (tx_id, out_idxes) in valid_outputs {
             for out_idx in out_idxes {
                 let tx_id_bytes = hex::decode(tx_id.clone()).unwrap();
-                let input = TxInput::new(tx_id_bytes, out_idx, from.to_string());
+                let input = TxInput::new(
+                    tx_id_bytes,
+                    out_idx,
+                    from_wallet.pub_key.clone(),
+                    Vec::default(),
+                );
                 inputs.push(input);
             }
         }
@@ -160,11 +169,13 @@ impl Transaction {
             outputs.push(remain_output);
         }
 
-        let tx = Transaction {
+        let mut tx = Transaction {
             id: vec![],
             inputs: inputs,
             outputs: outputs,
         };
+
+        blockchain.sign_transaction(&mut tx, &mut from_wallet.priv_key);
 
         tx
     }
@@ -226,7 +237,7 @@ impl Transaction {
     /// ```
     pub fn sign(
         &mut self,
-        mut signing_key: ecdsa::SigningKey,
+        signing_key: &mut ecdsa::SigningKey,
         mut prev_txs: HashMap<String, Transaction>,
     ) {
         let mut tx_copy = self.trimmed_copy();
@@ -286,10 +297,10 @@ impl Transaction {
             tx_copy.inputs[idx].pub_key = prev_tx.outputs.remove(input.out_idx).pub_key_hash;
 
             let hash = Sha256::digest(bincode::encode_to_vec(&tx_copy, standard()).unwrap());
-            
+
             let encoded_point = EncodedPoint::from_bytes(&input.pub_key).unwrap();
             let verifying_key = VerifyingKey::from_encoded_point(&encoded_point).unwrap();
-            let raw_bytes : [u8; 64] = input.sig.clone().try_into().unwrap();
+            let raw_bytes: [u8; 64] = input.sig.clone().try_into().unwrap();
             let signature = Signature::from_bytes(&raw_bytes.into()).unwrap();
             if let Err(_) = verifying_key.verify(&hash, &signature) {
                 return false;
