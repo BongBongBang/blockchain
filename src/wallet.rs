@@ -5,7 +5,7 @@ use bincode::{
     enc::Encoder,
     error::{DecodeError, EncodeError},
 };
-use k256::{ecdsa::SigningKey, elliptic_curve::rand_core::OsRng, ecdsa::VerifyingKey};
+use k256::{ecdsa::SigningKey, ecdsa::VerifyingKey, elliptic_curve::rand_core::OsRng};
 use sha2::{Digest, Sha256};
 
 const VERSION: u8 = 0;
@@ -72,6 +72,16 @@ impl Wallet {
         let ripemd_hashed = ripemd::Ripemd160::digest(sha256_hashed);
 
         ripemd_hashed.to_vec()
+    }
+
+    pub fn validate_address(address: &str) -> bool {
+        let address_bytes = hex::decode(address).expect(&format!("非法的Address地址: {}", address));
+        let version = address_bytes[0];
+        let pub_key_hash = &address_bytes[1..address_bytes.len() - CHECK_SUM_LENGTH];
+
+        let check_sum = Wallet::checksum()
+
+        false
     }
 }
 

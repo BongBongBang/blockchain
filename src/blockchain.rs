@@ -4,7 +4,6 @@ use readb::{Database, DatabaseSettings, DefaultDatabase};
 use std::{
     collections::HashMap,
     fs::{self},
-    hash::Hash,
     path::PathBuf,
     sync::{Arc, Mutex},
 };

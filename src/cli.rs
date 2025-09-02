@@ -65,7 +65,6 @@ impl CommandLine {
             CliOperation::ListAddress => self.get_all_address(),
             CliOperation::Send => self.send(),
             CliOperation::PrintUsage => self.print_chain(),
-            _ => {}
         }
     }
 
