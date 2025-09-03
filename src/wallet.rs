@@ -9,7 +9,7 @@ use k256::{ecdsa::SigningKey, ecdsa::VerifyingKey, elliptic_curve::rand_core::Os
 use sha2::{Digest, Sha256};
 
 const VERSION: u8 = 0;
-const CHECK_SUM_LENGTH: usize = 4;
+pub const CHECK_SUM_LENGTH: usize = 4;
 
 #[derive(Debug)]
 pub struct Wallet {
@@ -74,14 +74,27 @@ impl Wallet {
         ripemd_hashed.to_vec()
     }
 
+    /// 校验地址是否合法
+    /// 
+    /// # Arguments
+    /// 
+    /// - `address` (`&str`) - 待校验的地址
+    /// 
+    /// # Returns
+    /// 
+    /// - `bool` - 是否合法
     pub fn validate_address(address: &str) -> bool {
         let address_bytes = hex::decode(address).expect(&format!("非法的Address地址: {}", address));
         let version = address_bytes[0];
         let pub_key_hash = &address_bytes[1..address_bytes.len() - CHECK_SUM_LENGTH];
+        let ver_pubkey_hash = [&[version], pub_key_hash].concat();
 
-        let check_sum = Wallet::checksum()
+        let checksum = Wallet::checksum(&ver_pubkey_hash);
 
-        false
+        let address_checksum = &address_bytes[address_bytes.len() - CHECK_SUM_LENGTH..];
+
+
+        &checksum == address_checksum
     }
 }
 

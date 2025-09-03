@@ -185,7 +185,7 @@ impl Blockchain {
     }
 
     // 寻找所有未花费的transaction
-    pub fn find_unspent_tx(&mut self, pub_key_hash: &Vec<u8>) -> Vec<Transaction> {
+    pub fn find_unspent_tx(&mut self, pub_key_hash: &[u8]) -> Vec<Transaction> {
         let mut iter = self.iterator();
 
         let mut unspent_tx = Vec::default();
@@ -236,7 +236,7 @@ impl Blockchain {
     /*
      * 寻找某地址所有未支付Output
      */
-    pub fn find_utxo(&mut self, pub_key_hash: &Vec<u8>) -> Vec<TxOutput> {
+    pub fn find_utxo(&mut self, pub_key_hash: &[u8]) -> Vec<TxOutput> {
         let unspent_txes = self.find_unspent_tx(pub_key_hash);
 
         if unspent_txes.len() == 0 {

@@ -54,7 +54,7 @@ impl TxOutput {
     }
 
     // 判断当前output是否归属pub_key
-    pub fn belongs_to(&self, pub_key_hash: &Vec<u8>) -> bool {
+    pub fn belongs_to(&self, pub_key_hash: &[u8]) -> bool {
         &self.pub_key_hash == pub_key_hash
     }
 }
@@ -87,9 +87,8 @@ impl Transaction {
         let id_bytes = bincode::encode_to_vec(&*self, standard())
             .expect("Failed to encode Transaction instance.");
 
-        let mut hasher = sha2::Sha256::new();
-        hasher.update(&id_bytes);
-        self.id = hasher.finalize().to_vec();
+        let id = sha2::Sha256::digest(&id_bytes);
+        self.id = id.to_vec();
     }
 
     pub fn is_coinbase(&self) -> bool {

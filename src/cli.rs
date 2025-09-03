@@ -1,6 +1,14 @@
+use base58::FromBase58;
 use clap::{Parser, ValueEnum};
 
-use crate::{blockchain::Blockchain, cli, proof_of_work::ProofOfWork, transaction::Transaction, wallets::Wallets};
+use crate::{
+    blockchain::Blockchain,
+    cli,
+    proof_of_work::ProofOfWork,
+    transaction::Transaction,
+    wallet::{self, Wallet},
+    wallets::Wallets,
+};
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum CliOperation {
@@ -93,7 +101,6 @@ impl CommandLine {
         }
     }
 
-
     fn create_chain(&self) {
         Blockchain::init(self.cli_param.address.as_ref().unwrap().to_string());
         println!("Created blockchain!");
@@ -120,7 +127,14 @@ impl CommandLine {
         let mut blockchain = Blockchain::continue_chain();
 
         let address = self.cli_param.address.take().unwrap();
-        let utxos = blockchain.find_utxo(&address);
+        if Wallet::validate_address(&address) {
+            panic!("地址: {} 不是一个合法的地址", address);
+        }
+
+        let addr_base58 = address.from_base58().unwrap();
+        let pubkey_hash = &addr_base58[1..addr_base58.len() - wallet::CHECK_SUM_LENGTH];
+
+        let utxos = blockchain.find_utxo(pubkey_hash);
         if utxos.len() == 0 {
             println!("Address {} doesn't own any coin!", &address);
         } else {
@@ -135,6 +149,21 @@ impl CommandLine {
     fn send(&mut self) {
         let mut blockchain = Blockchain::continue_chain();
         let cli_param = &mut self.cli_param;
+
+        if Wallet::validate_address(&cli_param.from.as_deref().unwrap()) {
+            panic!(
+                "From address: {} is not a valid address",
+                &cli_param.from.take().unwrap()
+            );
+        }
+
+        if Wallet::validate_address(&cli_param.to.as_deref().unwrap()) {
+            panic!(
+                "To address: {} is not a valid address",
+                &cli_param.to.take().unwrap()
+            );
+        }
+
         let mut tx = Transaction::new(
             &cli_param.from.take().unwrap(),
             &cli_param.to.take().unwrap(),
