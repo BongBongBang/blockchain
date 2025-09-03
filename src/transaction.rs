@@ -71,7 +71,7 @@ impl TxInput {
 
     // 判断当前input是否是pub_key的来源
     #[inline]
-    pub fn spent_by(&self, pub_key_hash: &Vec<u8>) -> bool {
+    pub fn spent_by(&self, pub_key_hash: &[u8]) -> bool {
         &Wallet::hash_pub_key(&self.pub_key) == pub_key_hash
     }
 }
@@ -314,20 +314,20 @@ impl Transaction {
 impl Display for Transaction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 
-        f.write_str(&format!("--- Transaction {}:", hex::encode(&self.id)));
+        let _ = f.write_str(&format!("--- Transaction {}:", hex::encode(&self.id)));
         
         for (idx, input) in self.inputs.iter().enumerate() {
-            f.write_str(&format!("    Input {:?}:", idx));
-            f.write_str(&format!("        Tx ID:      {}", hex::encode(&input.tx_id)));
-            f.write_str(&format!("        Out:        {:?}", input.out_idx));
-            f.write_str(&format!("        Signature:  {}", hex::encode(&input.sig)));
-            f.write_str(&format!("        Scipt:      {}", hex::encode(&input.pub_key)));
+            let _ = f.write_str(&format!("    Input {:?}:", idx));
+            let _ = f.write_str(&format!("        Tx ID:      {}", hex::encode(&input.tx_id)));
+            let _ = f.write_str(&format!("        Out:        {:?}", input.out_idx));
+            let _ = f.write_str(&format!("        Signature:  {}", hex::encode(&input.sig)));
+            let _ = f.write_str(&format!("        Scipt:      {}", hex::encode(&input.pub_key)));
         }
 
         for (idx, output) in self.outputs.iter().enumerate() {
-            f.write_str(&format!("    Output  {}:", idx));
-            f.write_str(&format!("        Value: {}", output.amount));
-            f.write_str(&format!("        Script: {}", hex::encode(&output.pub_key_hash)));
+            let _ = f.write_str(&format!("    Output  {}:", idx));
+            let _ = f.write_str(&format!("        Value: {}", output.amount));
+            let _ = f.write_str(&format!("        Script: {}", hex::encode(&output.pub_key_hash)));
         }
 
         Ok(())

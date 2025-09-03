@@ -75,13 +75,13 @@ impl Wallet {
     }
 
     /// 校验地址是否合法
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// - `address` (`&str`) - 待校验的地址
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// - `bool` - 是否合法
     pub fn validate_address(address: &str) -> bool {
         let address_bytes = hex::decode(address).expect(&format!("非法的Address地址: {}", address));
@@ -92,7 +92,6 @@ impl Wallet {
         let checksum = Wallet::checksum(&ver_pubkey_hash);
 
         let address_checksum = &address_bytes[address_bytes.len() - CHECK_SUM_LENGTH..];
-
 
         &checksum == address_checksum
     }

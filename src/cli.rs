@@ -101,8 +101,13 @@ impl CommandLine {
         }
     }
 
-    fn create_chain(&self) {
-        Blockchain::init(self.cli_param.address.as_ref().unwrap().to_string());
+    fn create_chain(&mut self) {
+        let address = self.cli_param.address.take().unwrap();
+        if !Wallet::validate_address(&address) {
+            panic!("Address: {} is not a valid address", address);
+        }
+
+        Blockchain::init(address);
         println!("Created blockchain!");
     }
 
@@ -127,7 +132,7 @@ impl CommandLine {
         let mut blockchain = Blockchain::continue_chain();
 
         let address = self.cli_param.address.take().unwrap();
-        if Wallet::validate_address(&address) {
+        if !Wallet::validate_address(&address) {
             panic!("地址: {} 不是一个合法的地址", address);
         }
 
@@ -150,14 +155,14 @@ impl CommandLine {
         let mut blockchain = Blockchain::continue_chain();
         let cli_param = &mut self.cli_param;
 
-        if Wallet::validate_address(&cli_param.from.as_deref().unwrap()) {
+        if !Wallet::validate_address(&cli_param.from.as_deref().unwrap()) {
             panic!(
                 "From address: {} is not a valid address",
                 &cli_param.from.take().unwrap()
             );
         }
 
-        if Wallet::validate_address(&cli_param.to.as_deref().unwrap()) {
+        if !Wallet::validate_address(&cli_param.to.as_deref().unwrap()) {
             panic!(
                 "To address: {} is not a valid address",
                 &cli_param.to.take().unwrap()

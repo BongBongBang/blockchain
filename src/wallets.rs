@@ -77,9 +77,9 @@ impl Wallets {
         let bytes = bincode::encode_to_vec(&self, standard()).unwrap();
         let path = Path::new(WALLET_FILE);
         if let Some(parent_path) = path.parent() {
-            fs::create_dir_all(parent_path);
+            let _ = fs::create_dir_all(parent_path).expect("创建钱包目录地址失败!");
         }
         let mut file = File::create(WALLET_FILE).unwrap();
-        file.write_all(&bytes);
+        let _ = file.write_all(&bytes).expect("持久化钱包数据失败！");
     }
 }

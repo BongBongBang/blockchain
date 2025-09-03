@@ -12,7 +12,6 @@ use crate::{
     block::Block,
     register_exit_callback,
     transaction::{Transaction, TxOutput},
-    wallet::Wallet,
 };
 
 const DB_PATH: &str = "./blocks";
