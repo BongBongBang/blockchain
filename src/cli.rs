@@ -69,7 +69,7 @@ impl CommandLine {
             CliOperation::CreateChain => self.create_chain(),
             CliOperation::GetBalance => self.get_balance(),
             CliOperation::PrintChain => self.print_chain(),
-            CliOperation::CreateWallet => self.create_chain(),
+            CliOperation::CreateWallet => self.create_wallet(),
             CliOperation::ListAddress => self.get_all_address(),
             CliOperation::Send => self.send(),
             CliOperation::PrintUsage => self.print_chain(),
@@ -91,6 +91,7 @@ impl CommandLine {
     fn create_wallet(&self) {
         let mut wallets = Wallets::new();
         let address = wallets.add_wallet();
+        wallets.save_file();
         println!("Succeed creating wallet: {}\n", address);
     }
 

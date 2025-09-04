@@ -73,7 +73,7 @@ impl Wallets {
         }
     }
 
-    fn save_file(&self) {
+    pub fn save_file(&self) {
         let bytes = bincode::encode_to_vec(&self, standard()).unwrap();
         let path = Path::new(WALLET_FILE);
         if let Some(parent_path) = path.parent() {
