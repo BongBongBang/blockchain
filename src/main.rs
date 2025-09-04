@@ -6,6 +6,8 @@ mod proof_of_work;
 mod transaction;
 mod wallet;
 mod wallets;
+mod tx;
+mod utxo;
 
 use std::sync::Mutex;
 

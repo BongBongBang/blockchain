@@ -11,7 +11,7 @@ use std::{
 use crate::{
     block::Block,
     register_exit_callback,
-    transaction::{Transaction, TxOutput},
+    transaction::Transaction, tx::TxOutput,
 };
 
 const DB_PATH: &str = "./blocks";
