@@ -1,4 +1,4 @@
-use base58::ToBase58;
+use base58::{FromBase58, ToBase58};
 use bincode::{
     BorrowDecode, Decode, Encode,
     de::Decoder,
@@ -84,7 +84,9 @@ impl Wallet {
     ///
     /// - `bool` - 是否合法
     pub fn validate_address(address: &str) -> bool {
-        let address_bytes = hex::decode(address).expect(&format!("非法的Address地址: {}", address));
+        let address_bytes = address
+            .from_base58()
+            .expect(&format!("非法的Address地址: {}", address));
         let version = address_bytes[0];
         let pub_key_hash = &address_bytes[1..address_bytes.len() - CHECK_SUM_LENGTH];
         let ver_pubkey_hash = [&[version], pub_key_hash].concat();
