@@ -22,11 +22,11 @@
             "args": [
                 "send",
                 "--from",
-                "aaron",
+                "1Emz2Ddy7VhbU7gJ2vnzWpfTjFrL5hnCGf",
                 "--to",
-                "tom",
+                "1QH7hF8apNN5noyHyfV4ZjDVTF3hNkzo4S",
                 "--amount",
-                "10"
+                "11"
             ],
             "cwd": "${workspaceFolder}",
             "sourceLanguages": [

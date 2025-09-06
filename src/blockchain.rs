@@ -123,7 +123,7 @@ impl Blockchain {
         };
     }
 
-    pub fn add_block(&mut self, transactions: Vec<Transaction>) {
+    pub fn add_block(&self, transactions: Vec<Transaction>) -> Block {
         let database = self.database.lock().unwrap();
         let lsh_bytes = database
             .get(LATEST_HASH_KEY)
@@ -151,9 +151,11 @@ impl Blockchain {
         database
             .insert(&block.hash, encoded_block)
             .expect("Failed to save new added block");
+
+        block   
     }
 
-    pub fn iterator(&mut self) -> Iterator {
+    pub fn iterator(&self) -> Iterator {
         let database = self.database.lock().unwrap();
         if let Some(lsh) = database.get(LATEST_HASH_KEY).ok().flatten() {
             return Iterator {
@@ -170,7 +172,7 @@ impl Blockchain {
     /*
      * 寻找某地址所有未支付Output
      */
-    pub fn find_utxos(&mut self) -> HashMap<String, TxOutputs> {
+    pub fn find_utxos(&self) -> HashMap<String, TxOutputs> {
 
         let mut iter = self.iterator();
         let mut utxos = HashMap::<String, TxOutputs>::default();

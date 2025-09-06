@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use bincode::config::{self, standard};
 
@@ -10,12 +10,12 @@ use crate::{
 
 const UTXO_PREFIX: &str = "utxo-";
 
-pub struct UTXOSet<'a> {
-    pub blockchain: &'a mut Blockchain,
+pub struct UTXOSet {
+    pub blockchain: Rc<Blockchain>,
 }
 
-impl<'a> UTXOSet<'a> {
-    pub fn new(blockchain: &'a mut Blockchain) -> Self {
+impl<'a> UTXOSet {
+    pub fn new(blockchain: Rc<Blockchain>) -> Self {
         Self { blockchain }
     }
     /// 找到足够amount的可花费Txoutput
@@ -45,17 +45,19 @@ impl<'a> UTXOSet<'a> {
             .unwrap()
             .scan_prefix(UTXO_PREFIX)
         {
-            let (tx_id, val) = result.unwrap();
+            let (key, val) = result.unwrap();
 
             // decode to TxOutputs
             let (tx_outputs, _): (TxOutputs, usize) =
                 bincode::decode_from_slice(&val, config::standard()).unwrap();
 
+            let tx_id = &key[UTXO_PREFIX.len()..];
+
             // traverse TxOutput and accumulate TxOutput.amount
             for (idx, tx_output) in tx_outputs.outputs.iter().enumerate() {
                 if accumulated < amount && tx_output.belongs_to(pub_key_hash) {
                     spendable_outputs
-                        .entry(String::from_utf8_lossy(&tx_id).to_string())
+                        .entry(String::from_utf8_lossy(tx_id).to_string())
                         .or_insert_with(Vec::new)
                         .push(idx);
                     accumulated += tx_output.amount;
@@ -132,7 +134,7 @@ impl<'a> UTXOSet<'a> {
     ///
     /// - `&self` (`undefined`) - UTXO
     /// - `block` (`&'a Block`) - Block
-    pub fn update(&self, block: &'a Block) {
+    pub fn update(&self, block:&Block) {
         for tx in &block.transactions {
             let database = self.blockchain.database.lock().unwrap();
 
@@ -155,7 +157,9 @@ impl<'a> UTXOSet<'a> {
 
                 let unspent_tx_outputs = TxOutputs::new(utxos);
                 let bytes = bincode::encode_to_vec(unspent_tx_outputs, config::standard()).unwrap();
-                database.insert(key, bytes);
+                database
+                    .insert(key, bytes)
+                    .expect("Failed to update Block.Input");
             }
 
             // save new TxOutput
@@ -174,7 +178,9 @@ impl<'a> UTXOSet<'a> {
                     .collect(),
             );
             let bytes = bincode::encode_to_vec(new_tx_outputs, config::standard()).unwrap();
-            database.insert(tx_id_key, bytes);
+            database
+                .insert(tx_id_key, bytes)
+                .expect(&format!("Failed to update Block.Output"));
         }
         todo!("这里的tx output idx 协变了");
     }
@@ -184,7 +190,7 @@ impl<'a> UTXOSet<'a> {
     /// # Arguments
     ///
     /// - `&self` (`undefined`) - UTXOSet
-    pub fn rebuild(&mut self) {
+    pub fn rebuild(&self) {
         self.clear_utxo();
         let utxos = self.blockchain.find_utxos();
         if utxos.is_empty() {

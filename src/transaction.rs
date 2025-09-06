@@ -13,7 +13,6 @@ use k256::ecdsa::signature::Verifier;
 use sha2::Digest;
 use sha2::Sha256;
 
-use crate::blockchain;
 use crate::tx::TxInput;
 use crate::tx::TxOutput;
 use crate::utxo::UTXOSet;
@@ -90,9 +89,9 @@ impl Transaction {
         }
         let from_wallet = from_wallet_op.unwrap();
 
-        let (accumulated, valid_outputs) = utxo_set 
-            .find_spendable_outputs(&Wallet::hash_pub_key(&from_wallet.pub_key), amount)
-            .expect(&format!("Address [{}] does'nt have enough money!", from));
+        // let (accumulated, valid_outputs) = utxo_set
+        //     .find_spendable_outputs(&Wallet::hash_pub_key(&from_wallet.pub_key), amount)
+        //     .expect(&format!("Address [{}] does'nt have enough money!", from));
 
         let mut inputs = vec![];
 
@@ -125,7 +124,9 @@ impl Transaction {
             outputs: outputs,
         };
 
-        utxo_set.blockchain.sign_transaction(&mut tx, &mut from_wallet.priv_key);
+        utxo_set
+            .blockchain
+            .sign_transaction(&mut tx, &mut from_wallet.priv_key);
 
         tx
     }
