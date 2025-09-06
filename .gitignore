@@ -1,3 +1,6 @@
 /target/*
 /blocks/*
 /wallets/*
+blocks/db
+.gitignore
+tmp/wallets.data
