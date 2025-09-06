@@ -11,10 +11,14 @@ use crate::{
 const UTXO_PREFIX: &str = "utxo-";
 
 pub struct UTXOSet<'a> {
-    blockchain: &'a mut Blockchain,
+    pub blockchain: &'a mut Blockchain,
 }
 
 impl<'a> UTXOSet<'a> {
+
+    pub fn new(blockchain: &'a mut Blockchain) -> Self {
+        Self { blockchain }
+    }
     /// 找到足够amount的可花费Txoutput
     ///
     /// # Arguments
@@ -30,7 +34,7 @@ impl<'a> UTXOSet<'a> {
         &self,
         pub_key_hash: &[u8],
         amount: u128,
-    ) -> (u128, HashMap<String, Vec<usize>>) {
+    ) -> Option<(u128, HashMap<String, Vec<usize>>)> {
         let mut accumulated = 0u128;
         let mut spendable_outputs = HashMap::<String, Vec<usize>>::default();
 
@@ -60,7 +64,10 @@ impl<'a> UTXOSet<'a> {
             }
         }
 
-        (accumulated, spendable_outputs)
+        if accumulated > amount {
+            return Some((accumulated, spendable_outputs));
+        }
+        None
     }
 
     /// 找到adress的所有utxo

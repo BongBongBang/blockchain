@@ -2,12 +2,7 @@ use base58::FromBase58;
 use clap::{Parser, ValueEnum};
 
 use crate::{
-    blockchain::Blockchain,
-    cli,
-    proof_of_work::ProofOfWork,
-    transaction::Transaction,
-    wallet::{self, Wallet},
-    wallets::Wallets,
+    blockchain::Blockchain, cli, proof_of_work::ProofOfWork, transaction::Transaction, utxo::UTXOSet, wallet::{self, Wallet}, wallets::Wallets
 };
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
@@ -140,7 +135,9 @@ impl CommandLine {
         let addr_base58 = address.from_base58().unwrap();
         let pubkey_hash = &addr_base58[1..addr_base58.len() - wallet::CHECK_SUM_LENGTH];
 
-        let utxos = blockchain.find_utxo(pubkey_hash);
+        let utxo_set = UTXOSet::new(&mut blockchain);
+
+        let utxos = utxo_set.find_utxo(pubkey_hash);
         if utxos.len() == 0 {
             println!("Address {} doesn't own any coin!", &address);
         } else {
@@ -170,14 +167,18 @@ impl CommandLine {
             );
         }
 
+        let mut utxo_set = UTXOSet::new(&mut blockchain);
+
         let mut tx = Transaction::new(
             &cli_param.from.take().unwrap(),
             &cli_param.to.take().unwrap(),
             cli_param.amount.take().unwrap(),
-            &mut blockchain,
+            &mut utxo_set,
         );
         tx.set_id();
         blockchain.add_block(vec![tx]);
+
+
         println!("Succeed sending coin!");
     }
 }

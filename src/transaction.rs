@@ -13,9 +13,10 @@ use k256::ecdsa::signature::Verifier;
 use sha2::Digest;
 use sha2::Sha256;
 
-use crate::blockchain::Blockchain;
+use crate::blockchain;
 use crate::tx::TxInput;
 use crate::tx::TxOutput;
+use crate::utxo::UTXOSet;
 use crate::wallet::Wallet;
 use crate::wallets::Wallets;
 
@@ -73,7 +74,7 @@ impl Transaction {
         tx
     }
 
-    pub fn new(from: &str, to: &str, amount: u128, blockchain: &mut Blockchain) -> Self {
+    pub fn new(from: &str, to: &str, amount: u128, utxo_set: &mut UTXOSet) -> Self {
         let mut wallets = Wallets::new();
 
         {
@@ -89,8 +90,8 @@ impl Transaction {
         }
         let from_wallet = from_wallet_op.unwrap();
 
-        let (accumulated, valid_outputs) = blockchain
-            .find_spendable_outputs(amount, &Wallet::hash_pub_key(&from_wallet.pub_key))
+        let (accumulated, valid_outputs) = utxo_set 
+            .find_spendable_outputs(&Wallet::hash_pub_key(&from_wallet.pub_key), amount)
             .expect(&format!("Address [{}] does'nt have enough money!", from));
 
         let mut inputs = vec![];
@@ -124,7 +125,7 @@ impl Transaction {
             outputs: outputs,
         };
 
-        blockchain.sign_transaction(&mut tx, &mut from_wallet.priv_key);
+        utxo_set.blockchain.sign_transaction(&mut tx, &mut from_wallet.priv_key);
 
         tx
     }
