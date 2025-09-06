@@ -182,7 +182,7 @@ impl<'a> UTXOSet {
                 .insert(tx_id_key, bytes)
                 .expect(&format!("Failed to update Block.Output"));
         }
-        todo!("这里的tx output idx 协变了");
+        // todo!("这里的tx output idx 协变了");
     }
 
     /// 重建utxo set的数据库
