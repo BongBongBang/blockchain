@@ -1,14 +1,13 @@
 use bincode::{Encode, config};
 use k256::ecdsa::SigningKey;
-use readb::{Database, DatabaseSettings, DefaultDatabase};
 use std::{
-    collections::HashMap, default, fs::{self}, path::PathBuf, sync::{Arc, Mutex}
+    collections::HashMap, fs::{self}, path::PathBuf, sync::{Arc, Mutex}
 };
 
 use crate::{
     block::Block,
     register_exit_callback,
-    transaction::Transaction, tx::{self, TxOutput, TxOutputs},
+    transaction::Transaction, tx::TxOutputs,
 };
 
 const DB_PATH: &str = "./blocks";
@@ -17,7 +16,6 @@ const LATEST_HASH_KEY: &str = "lsh";
 pub struct Blockchain {
     pub latest_hash: String,
     pub database: Arc<Mutex<sled::Db>>,
-    // pub database: Arc<Mutex<readb::DefaultDatabase>>,
 }
 
 impl Encode for Blockchain {
@@ -55,7 +53,7 @@ impl Blockchain {
         let db_path = PathBuf::from(DB_PATH);
 
         let db_client_mutex = Blockchain::init_db_client(db_path);
-        let mut db_client = db_client_mutex.lock().unwrap();
+        let db_client = db_client_mutex.lock().unwrap();
         let lsh_value = db_client.get(LATEST_HASH_KEY);
 
         if let Some(lsh) = lsh_value.ok().flatten() {
@@ -72,13 +70,6 @@ impl Blockchain {
     初始化数据库链接实例
      */
     fn init_db_client(db_path: PathBuf) -> Arc<Mutex<sled::Db>> {
-        // 初始化数据库
-        // let database_config = DatabaseSettings {
-        //     path: Some(db_path),
-        //     index_type: readb::IndexType::HashMap,
-        //     cache_size: None,
-        //     create_path: true,
-        // };
         let db = sled::open(db_path).expect("Failed to open Sled db!");
 
         let db_client_mutex = Arc::new(Mutex::new(db));
@@ -103,7 +94,7 @@ impl Blockchain {
         }
 
         let db_client_mutex = Blockchain::init_db_client(db_path);
-        let mut db_client = db_client_mutex.lock().unwrap();
+        let db_client = db_client_mutex.lock().unwrap();
 
         // init coinbase & genesis block
         let mut coinbase_tx = Transaction::coinbase_tx(to);
@@ -125,9 +116,7 @@ impl Blockchain {
         db_client
             .insert(LATEST_HASH_KEY, hash_bytes)
             .expect("Failed to store latest hash");
-        // db_client
-        //     .persist()
-        // .expect("Failed to store genesis block data !!!");
+
         return Blockchain {
             latest_hash: genesis_block.hash,
             database: Arc::clone(&db_client_mutex),
@@ -135,7 +124,7 @@ impl Blockchain {
     }
 
     pub fn add_block(&mut self, transactions: Vec<Transaction>) {
-        let mut database = self.database.lock().unwrap();
+        let database = self.database.lock().unwrap();
         let lsh_bytes = database
             .get(LATEST_HASH_KEY)
             .ok()
@@ -162,10 +151,6 @@ impl Blockchain {
         database
             .insert(&block.hash, encoded_block)
             .expect("Failed to save new added block");
-
-        // database
-        //     .persist()
-        //     .expect("Failed to store added block data !!!");
     }
 
     pub fn iterator(&mut self) -> Iterator {
@@ -293,7 +278,7 @@ impl Iterator {
         if &self.current_hash == "" {
             return None;
         }
-        let mut database = self.database.lock().unwrap();
+        let database = self.database.lock().unwrap();
 
         let encoded_data = database
             .get(&self.current_hash)
