@@ -219,7 +219,7 @@ impl Blockchain {
     /// # Returns
     ///
     /// - `Transaction` - 事务.
-    pub fn find_transaction(&mut self, tx_id: &Vec<u8>) -> Transaction {
+    pub fn find_transaction(&self, tx_id: &Vec<u8>) -> Transaction {
         let mut iter = self.iterator();
         while let Some(block) = iter.next() {
             for tx in block.transactions {
@@ -240,7 +240,7 @@ impl Blockchain {
     /// - `priv_key` (`&SigningKey`) - 签名的私钥
     /// # Returns
     ///
-    pub fn sign_transaction(&mut self, tx_to_sign: &mut Transaction, priv_key: &mut SigningKey) {
+    pub fn sign_transaction(&self, tx_to_sign: &mut Transaction, priv_key: &mut SigningKey) {
         let mut prev_txs: HashMap<String, Transaction> = HashMap::new();
         for input in &tx_to_sign.inputs {
             let tx = self.find_transaction(&input.tx_id);

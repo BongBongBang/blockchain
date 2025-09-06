@@ -89,9 +89,9 @@ impl Transaction {
         }
         let from_wallet = from_wallet_op.unwrap();
 
-        // let (accumulated, valid_outputs) = utxo_set
-        //     .find_spendable_outputs(&Wallet::hash_pub_key(&from_wallet.pub_key), amount)
-        //     .expect(&format!("Address [{}] does'nt have enough money!", from));
+        let (accumulated, valid_outputs) = utxo_set
+            .find_spendable_outputs(&Wallet::hash_pub_key(&from_wallet.pub_key), amount)
+            .expect(&format!("Address [{}] does'nt have enough money!", from));
 
         let mut inputs = vec![];
 

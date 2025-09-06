@@ -114,21 +114,21 @@ impl CommandLine {
             panic!("Address: {} is not a valid address", address);
         }
 
-        let mut blockchain = Blockchain::init(address);
-        let mut utxo_set = UTXOSet::new(&mut blockchain);
+        let blockchain = Rc::new(Blockchain::init(address));
+        let utxo_set = UTXOSet::new(blockchain);
         utxo_set.rebuild();
         println!("Created blockchain!");
     }
 
     fn rebuild(&self) {
-        let mut blockchain = Blockchain::continue_chain();
-        let mut utxo_set = UTXOSet::new(&mut blockchain);
+        let blockchain = Rc::new(Blockchain::continue_chain());
+        let utxo_set = UTXOSet::new(blockchain);
         utxo_set.rebuild();
         println!("UTXO set rebuild!");
     }
 
     fn print_chain(&self) {
-        let mut blockchain = Blockchain::continue_chain();
+        let blockchain = Blockchain::continue_chain();
         let mut iter = blockchain.iterator();
         loop {
             if let Some(block) = iter.next() {
@@ -145,7 +145,7 @@ impl CommandLine {
     }
 
     fn get_balance(&mut self) {
-        let blockchain = &mut Blockchain::continue_chain();
+        let blockchain = Rc::new(Blockchain::continue_chain());
 
         let address = self.cli_param.address.take().unwrap();
         if !Wallet::validate_address(&address) {
