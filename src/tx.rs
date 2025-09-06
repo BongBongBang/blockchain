@@ -22,7 +22,23 @@ pub struct TxOutput {
 
 #[derive(Debug, Decode, Encode)]
 pub struct TxOutputs {
-    outputs: Vec<TxOutput>
+    pub outputs: Vec<TxOutput>
+}
+
+impl TxOutputs {
+    pub fn new(outputs: Vec<TxOutput>) -> Self {
+        Self { outputs }
+    }
+
+    pub fn push(&mut self, output: TxOutput) {
+        self.outputs.push(output);
+    }
+}
+
+impl Default for TxOutputs {
+    fn default() -> Self {
+        Self { outputs: Default::default() }
+    }
 }
 
 
