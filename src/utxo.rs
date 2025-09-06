@@ -15,7 +15,6 @@ pub struct UTXOSet<'a> {
 }
 
 impl<'a> UTXOSet<'a> {
-
     pub fn new(blockchain: &'a mut Blockchain) -> Self {
         Self { blockchain }
     }
@@ -103,13 +102,13 @@ impl<'a> UTXOSet<'a> {
     }
 
     /// 统计含有未花费tx的总数
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// - `&self` (`undefined`) - UTXO
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// - `u128` - 总数
     pub fn count_tx(&self) -> u128 {
         let mut count = 1u128;
@@ -128,26 +127,25 @@ impl<'a> UTXOSet<'a> {
     }
 
     /// 用Block刷新现有的UTXO
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// - `&self` (`undefined`) - UTXO
     /// - `block` (`&'a Block`) - Block
     pub fn update(&self, block: &'a Block) {
-
         for tx in &block.transactions {
-
             let database = self.blockchain.database.lock().unwrap();
-            
+
             // invalid referenced UTXO
             for input in &tx.inputs {
                 let input_tx_id = hex::encode(&input.tx_id);
                 let key = format!("{}{}", UTXO_PREFIX, input_tx_id);
-                let val =  database.get(key.clone()).ok().flatten().unwrap();
+                let val = database.get(key.clone()).ok().flatten().unwrap();
 
-                let (tx_outputs, _) : (TxOutputs, usize) = bincode::decode_from_slice(&val, config::standard()).unwrap();
+                let (tx_outputs, _): (TxOutputs, usize) =
+                    bincode::decode_from_slice(&val, config::standard()).unwrap();
 
-                let mut utxos : Vec<TxOutput> = vec![];
+                let mut utxos: Vec<TxOutput> = vec![];
 
                 for (idx, tx_output) in tx_outputs.outputs.into_iter().enumerate() {
                     if idx != input.out_idx {
@@ -164,9 +162,17 @@ impl<'a> UTXOSet<'a> {
             let tx_id = hex::encode(&tx.id);
             let tx_id_key = format!("{}{}", UTXO_PREFIX, tx_id);
 
-            let new_tx_outputs = TxOutputs::new(tx.outputs.iter().map(|output| {
-                return TxOutput {pub_key_hash: output.pub_key_hash.clone(), amount: output.amount};
-            }).collect());
+            let new_tx_outputs = TxOutputs::new(
+                tx.outputs
+                    .iter()
+                    .map(|output| {
+                        return TxOutput {
+                            pub_key_hash: output.pub_key_hash.clone(),
+                            amount: output.amount,
+                        };
+                    })
+                    .collect(),
+            );
             let bytes = bincode::encode_to_vec(new_tx_outputs, config::standard()).unwrap();
             database.insert(tx_id_key, bytes);
         }
@@ -174,9 +180,9 @@ impl<'a> UTXOSet<'a> {
     }
 
     /// 重建utxo set的数据库
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// - `&self` (`undefined`) - UTXOSet
     pub fn rebuild(&mut self) {
         self.clear_utxo();
@@ -187,9 +193,14 @@ impl<'a> UTXOSet<'a> {
 
         let database = self.blockchain.database.lock().unwrap();
         for (k, v) in utxos.into_iter() {
-            let utxo_key = format!("{}{}", UTXO_PREFIX, k); 
+            let utxo_key = format!("{}{}", UTXO_PREFIX, k);
             let utxo_bytes = bincode::encode_to_vec(v, config::standard()).unwrap();
-            database.insert(utxo_key, utxo_bytes);
+            database
+                .insert(utxo_key.clone(), utxo_bytes)
+                .expect(&format!(
+                    "Failed to rebuild utxo set, insert {} tx error",
+                    utxo_key
+                ));
         }
     }
 
@@ -198,7 +209,7 @@ impl<'a> UTXOSet<'a> {
         let database = self.blockchain.database.lock().unwrap();
         for result in database.scan_prefix(UTXO_PREFIX) {
             let (k, _) = result.unwrap();
-            database.remove(k);
+            database.remove(k).expect("Failed to clear UTXO set!");
         }
     }
 }
