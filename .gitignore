@@ -1,7 +1,6 @@
-/target/*
-/blocks/*
-/wallets/*
+/target/
+/blocks/
+/wallets/
 blocks/db
 .gitignore
-tmp/wallets.data
-/tmp
+/tmp/
