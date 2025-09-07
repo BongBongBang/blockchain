@@ -1,7 +1,7 @@
 use core::panic;
-use bincode::{Decode, Encode};
+use bincode::{config, Decode, Encode};
 
-use crate::{proof_of_work::ProofOfWork, transaction::Transaction};
+use crate::{merkle::MerkleTree, proof_of_work::ProofOfWork, transaction::Transaction};
 
 #[derive(Debug, Encode, Decode)]
 pub struct Block {
@@ -47,11 +47,14 @@ impl Block {
     }
 
     pub fn hash_transactions(&self) -> Vec<u8> {
-        let mut result = Vec::default();
+        let mut tx_bytes : Vec<Vec<u8>> = vec![];
         for tx in &self.transactions {
-            result.extend(&tx.id);
+            let bytes = bincode::encode_to_vec(tx, config::standard()).unwrap();
+            tx_bytes.push(bytes);
         }
 
-        result
+        let merkle_tree = MerkleTree::new(tx_bytes);
+
+        merkle_tree.root.data
     }
 }

@@ -8,6 +8,7 @@ mod wallet;
 mod wallets;
 mod tx;
 mod utxo;
+mod merkle;
 
 use std::sync::Mutex;
 
