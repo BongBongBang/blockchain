@@ -98,7 +98,8 @@ impl Blockchain {
 
         // init coinbase & genesis block
         let mut coinbase_tx = Transaction::coinbase_tx(to);
-        coinbase_tx.set_id();
+        let tx_id = coinbase_tx.hash();
+        coinbase_tx.id = tx_id;
         let genesis_block = Block::genesis(coinbase_tx);
         let encoded_block = bincode::encode_to_vec(&genesis_block, config::standard())
             .ok()

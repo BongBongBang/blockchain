@@ -194,8 +194,10 @@ impl CommandLine {
             cli_param.amount.take().unwrap(),
             &mut utxo_set,
         );
-        tx.set_id();
          
+        let tx_id = tx.hash();
+        tx.id = tx_id;
+
         let block = blockchain.add_block(vec![tx]);
         utxo_set.update(&block);
 

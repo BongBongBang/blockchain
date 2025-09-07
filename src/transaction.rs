@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Display;
 
+use bincode::config;
 use bincode::config::standard;
 use bincode::{Decode, Encode};
 use k256::EncodedPoint;
@@ -33,13 +34,48 @@ impl AsRef<Transaction> for &mut Transaction {
 }
 
 impl Transaction {
-    pub fn set_id(&mut self) {
-        let id_bytes = bincode::encode_to_vec(&*self, standard())
-            .expect("Failed to encode Transaction instance.");
+    pub fn hash(&self) -> Vec<u8> {
+        let inputs = self
+            .inputs
+            .iter()
+            .map(|input| {
+                return TxInput {
+                    tx_id: input.tx_id.clone(),
+                    out_idx: input.out_idx,
+                    pub_key: input.pub_key.clone(),
+                    sig: Vec::default(),
+                };
+            })
+            .collect();
 
-        let id = sha2::Sha256::digest(&id_bytes);
-        self.id = id.to_vec();
+        let outputs = self
+            .outputs
+            .iter()
+            .map(|output| {
+                return TxOutput {
+                    amount: output.amount,
+                    pub_key_hash: output.pub_key_hash.clone(),
+                };
+            })
+            .collect();
+
+        let tx_copy = Transaction {
+            id: vec![],
+            inputs,
+            outputs,
+        };
+
+        let bytes = bincode::encode_to_vec(tx_copy, config::standard()).unwrap();
+
+        sha2::Sha256::digest(bytes).to_vec()
     }
+    // pub fn set_id(&mut self) {
+    //     let id_bytes = bincode::encode_to_vec(&*self, standard())
+    //         .expect("Failed to encode Transaction instance.");
+
+    //     let id = sha2::Sha256::digest(&id_bytes);
+    //     self.id = id.to_vec();
+    // }
 
     pub fn is_coinbase(&self) -> bool {
         self.inputs.len() == 1 && self.inputs[0].tx_id.len() == 0
