@@ -4,3 +4,4 @@
 blocks/db
 .gitignore
 tmp/wallets.data
+/tmp
