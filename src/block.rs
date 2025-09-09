@@ -1,4 +1,5 @@
 use core::panic;
+use std::time::{SystemTime, UNIX_EPOCH};
 use bincode::{config, Decode, Encode};
 
 use crate::{merkle::MerkleTree, proof_of_work::ProofOfWork, transaction::Transaction};
@@ -9,20 +10,28 @@ pub struct Block {
     pub transactions: Vec<Transaction>,
     pub hash: String,
     pub nonce: u32,
+    pub height: u128,
+    pub timestamp: u128
 }
 
 impl Block {
     pub fn genesis(coinbase: Transaction) -> Self {
-        Block::create_block(String::default(), vec![coinbase])
+        Block::create_block(String::default(), vec![coinbase], 0)
     }
 
-    pub fn create_block(prev_hash: String, transactions: Vec<Transaction>) -> Self {
+    pub fn create_block(prev_hash: String, transactions: Vec<Transaction>, height: u128) -> Self {
+
+        let now = SystemTime::now();
+        let since_the_epoch = now.duration_since(UNIX_EPOCH).unwrap();
+        let timestamp = since_the_epoch.as_millis();
         // todo: return the solid block, refresh nonce if has traversed it all.
         let mut new_block = Block {
             prev_hash,
             transactions,
             hash: String::default(),
             nonce: u32::default(),
+            height,
+            timestamp
         };
 
         // do the proof of work

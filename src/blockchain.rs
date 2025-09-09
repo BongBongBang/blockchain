@@ -1,14 +1,13 @@
 use bincode::{Encode, config};
 use k256::ecdsa::SigningKey;
 use std::{
-    collections::HashMap, fs::{self}, path::PathBuf, sync::{Arc, Mutex}
+    collections::HashMap,
+    fs::{self},
+    path::PathBuf,
+    sync::{Arc, Mutex},
 };
 
-use crate::{
-    block::Block,
-    register_exit_callback,
-    transaction::Transaction, tx::TxOutputs,
-};
+use crate::{block::Block, register_exit_callback, transaction::Transaction, tx::TxOutputs};
 
 const DB_PATH: &str = "./blocks";
 const LATEST_HASH_KEY: &str = "lsh";
@@ -153,7 +152,21 @@ impl Blockchain {
             .insert(&block.hash, encoded_block)
             .expect("Failed to save new added block");
 
-        block   
+        block
+    }
+
+    pub fn get_height(&self) -> u128 {
+        let database = self.database.lock().unwrap();
+        if let Some(lsh) = database.get(LATEST_HASH_KEY).ok().flatten() {
+            let lastest_hash = hex::encode(lsh);
+            if let Some(block_bytes) = database.get(lastest_hash).ok().flatten() {
+                let (block, _): (Block, usize) =
+                    bincode::decode_from_slice(&block_bytes, config::standard()).unwrap();
+                return block.height;
+            }
+        }
+
+        panic!("Didn't find the block height!")
     }
 
     pub fn iterator(&self) -> Iterator {
@@ -174,41 +187,41 @@ impl Blockchain {
      * 寻找某地址所有未支付Output
      */
     pub fn find_utxos(&self) -> HashMap<String, TxOutputs> {
-
         let mut iter = self.iterator();
         let mut utxos = HashMap::<String, TxOutputs>::default();
         let mut spent_outputs = HashMap::<String, Vec<usize>>::default();
 
         while let Some(block) = iter.next() {
-
             for tx in block.transactions {
                 let tx_id = hex::encode(&tx.id);
 
                 // process tx inputs
                 if !tx.is_coinbase() {
                     for input in tx.inputs {
-                        spent_outputs.entry(tx_id.clone())
+                        spent_outputs
+                            .entry(tx_id.clone())
                             .or_insert_with(Vec::new)
                             .push(input.out_idx);
                     }
                 }
 
                 for (idx, output) in tx.outputs.into_iter().enumerate() {
-                    
                     if spent_outputs.contains_key(&tx_id) {
                         if spent_outputs.get(&tx_id).unwrap().contains(&idx) {
-                            continue; 
-                        }                        
+                            continue;
+                        }
                     }
 
-                    utxos.entry(tx_id.clone()).or_insert_with(TxOutputs::default).push(output);
+                    utxos
+                        .entry(tx_id.clone())
+                        .or_insert_with(TxOutputs::default)
+                        .push(output);
                 }
-            } 
+            }
         }
 
         utxos
     }
-
 
     /// 寻找目标Transaction
     ///
@@ -252,14 +265,13 @@ impl Blockchain {
     }
 
     /// 校验某个Tx
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// - `bool` - 是否通过校验
-    /// 
+    ///
     pub fn verify_transaction(&mut self, tx_to_verify: &Transaction) -> bool {
-
-        let mut prev_txs : HashMap<String, Transaction> = HashMap::default();
+        let mut prev_txs: HashMap<String, Transaction> = HashMap::default();
 
         for input in &tx_to_verify.inputs {
             let tx = self.find_transaction(&input.tx_id);
@@ -268,7 +280,6 @@ impl Blockchain {
 
         tx_to_verify.verity(prev_txs)
     }
-
 }
 
 pub struct Iterator {
