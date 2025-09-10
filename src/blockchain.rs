@@ -1,10 +1,7 @@
 use bincode::{Encode, config};
 use k256::ecdsa::SigningKey;
 use std::{
-    collections::HashMap,
-    fs::{self},
-    path::PathBuf,
-    sync::{Arc, Mutex},
+    collections::HashMap, fs::{self}, io::Bytes, path::PathBuf, sync::{Arc, Mutex}
 };
 
 use crate::{block::Block, register_exit_callback, transaction::Transaction, tx::TxOutputs};
@@ -123,27 +120,12 @@ impl Blockchain {
         };
     }
 
-    pub fn add_block(&self, transactions: Vec<Transaction>) -> Block {
+    pub fn add_block(&self, block: Block) {
         let database = self.database.lock().unwrap();
-        let lsh_bytes = database
-            .get(LATEST_HASH_KEY)
-            .ok()
-            .flatten()
-            .expect("Failed to add_block cause there isn't  latest hash in DB");
 
-        // create block
-        let block = Block::create_block(hex::encode(lsh_bytes), transactions);
-
-        // save lastest hash
-        database
-            .insert(
-                LATEST_HASH_KEY,
-                hex::decode(&block.hash).expect(&format!(
-                    "Failed to decode hex hash {} to bytes",
-                    &block.hash
-                )),
-            )
-            .expect("Failed to save added block");
+        if database.contains_key(&block.hash).unwrap() {
+            return;
+        }
 
         // save new block to DB
         let encoded_block = bincode::encode_to_vec(&block, config::standard())
@@ -152,7 +134,53 @@ impl Blockchain {
             .insert(&block.hash, encoded_block)
             .expect("Failed to save new added block");
 
-        block
+        // load the last block
+        let lsh_bytes = database
+            .get(LATEST_HASH_KEY)
+            .ok()
+            .flatten()
+            .expect("Failed to add_block cause there isn't latest hash in DB");
+
+        let lsh = hex::encode(lsh_bytes);
+
+        let last_block_bytes = database.get(&lsh).ok().flatten().expect(&format!(
+            "Cannot load the last block from blockchain: {}",
+            &lsh
+        ));
+
+        let (last_block, _): (Block, usize) =
+            bincode::decode_from_slice(&last_block_bytes, config::standard()).unwrap();
+
+        // save lastest hash
+        if block.height > last_block.height {
+            database
+                .insert(
+                    LATEST_HASH_KEY,
+                    hex::decode(&block.hash).expect(&format!(
+                        "Failed to decode hex hash {} to bytes",
+                        &block.hash
+                    )),
+                )
+                .expect("Failed to save added block");
+        }
+    }
+
+    pub fn get_block(&self, hash: &[u8]) -> Option<Block> {
+        let key = hex::encode(hash);
+        let database = self.database.lock().unwrap();
+        let val = database.get(key).ok().flatten();
+
+        if let Some(bytes) = val {
+            
+        }
+
+        None
+    }
+
+    pub fn get_block_hashes() -> Vec<Vec<u8>> {}
+
+    pub fn mine_block() {
+
     }
 
     pub fn get_height(&self) -> u128 {
