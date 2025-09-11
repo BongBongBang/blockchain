@@ -1,10 +1,14 @@
 use bincode::{Encode, config};
 use k256::ecdsa::SigningKey;
 use std::{
-    collections::HashMap, fs::{self}, io::Bytes, path::PathBuf, sync::{Arc, Mutex}
+    collections::HashMap,
+    fs::{self},
+    io::Bytes,
+    path::PathBuf,
+    sync::{Arc, Mutex},
 };
 
-use crate::{block::Block, register_exit_callback, transaction::Transaction, tx::TxOutputs};
+use crate::{block::Block, register_exit_callback, transaction::Transaction, tx::{self, TxOutputs}};
 
 const DB_PATH: &str = "./blocks";
 const LATEST_HASH_KEY: &str = "lsh";
@@ -165,22 +169,72 @@ impl Blockchain {
         }
     }
 
+    /// 根据hash获取目标的Block
+    /// 
+    /// # Arguments
+    /// 
+    /// - `&self` (`undefined`) - Blockchain
+    /// - `hash` (`&[u8]`) - hash
+    /// 
+    /// # Returns
+    /// 
+    /// - `Option<Block>` - Block
     pub fn get_block(&self, hash: &[u8]) -> Option<Block> {
         let key = hex::encode(hash);
         let database = self.database.lock().unwrap();
         let val = database.get(key).ok().flatten();
 
-        if let Some(bytes) = val {
-            
+        match val {
+            Some(bytes) => {
+                let (block, _): (Block, usize) =
+                    bincode::decode_from_slice(&bytes, config::standard()).unwrap();
+                return Some(block);
+            }
+            None => None,
         }
-
-        None
     }
 
-    pub fn get_block_hashes() -> Vec<Vec<u8>> {}
+    pub fn get_block_hashes(&self) -> Vec<String> {
+        let mut iter = self.iterator();
 
-    pub fn mine_block() {
+        let mut hashes : Vec<String> = vec![];
+        while let Some(block) = iter.next() {
+            hashes.push(block.hash);
+        }
 
+        hashes
+    }
+
+    pub fn mine_block(&self, transactions: Vec<Transaction>) -> Block {
+
+        // verify all transactions
+        for tx in &transactions {
+            let verify = self.verify_transaction(tx);
+            if !verify {
+                let tx_id = hex::encode(&tx.id);
+                panic!("Detected invalid Transaction, id: {}", tx_id);
+            }
+        }
+
+        // get block height
+        let database = self.database.lock().unwrap();
+        let last_hash = database.get(LATEST_HASH_KEY).ok().flatten().unwrap();
+        let last_hash_key = hex::encode(last_hash);
+
+        let last_block_bytes = database.get(last_hash_key).ok().flatten().unwrap();
+
+        let (block, _) : (Block, usize) = bincode::decode_from_slice(&last_block_bytes, config::standard()).unwrap();
+
+        // do mine
+        let new_block = Block::create_block(block.hash.clone(), transactions, block.height);
+
+        // save new block & update lsh
+        let new_block_bytes = bincode::encode_to_vec(new_block, config::standard()).unwrap();
+        database.insert(&block.hash, new_block_bytes);
+        let hash_bytes = hex::decode(&block.hash).unwrap();
+        database.insert(LATEST_HASH_KEY, hash_bytes);
+
+        block
     }
 
     pub fn get_height(&self) -> u128 {
@@ -298,7 +352,7 @@ impl Blockchain {
     ///
     /// - `bool` - 是否通过校验
     ///
-    pub fn verify_transaction(&mut self, tx_to_verify: &Transaction) -> bool {
+    pub fn verify_transaction(&self, tx_to_verify: &Transaction) -> bool {
         let mut prev_txs: HashMap<String, Transaction> = HashMap::default();
 
         for input in &tx_to_verify.inputs {
