@@ -3,12 +3,11 @@ use k256::ecdsa::SigningKey;
 use std::{
     collections::HashMap,
     fs::{self},
-    io::Bytes,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
 
-use crate::{block::Block, register_exit_callback, transaction::Transaction, tx::{self, TxOutputs}};
+use crate::{block::Block, register_exit_callback, transaction::Transaction, tx::TxOutputs};
 
 const DB_PATH: &str = "./blocks";
 const LATEST_HASH_KEY: &str = "lsh";
