@@ -1,21 +1,14 @@
 pub mod command;
 
-use std::sync::{LazyLock, OnceLock};
-
-use bytes::BytesMut;
+use bytes::{BufMut, BytesMut};
+use futures::SinkExt;
 use tokio::{
-    io::{self, AsyncWriteExt},
-    net::{TcpListener, TcpSocket, TcpStream},
-    sync::RwLock,
+    io::{self},
+    net::{TcpListener, TcpStream},
 };
-use tokio_util::codec::{Decoder, Encoder};
+use tokio_util::codec::{Decoder, Encoder, Framed};
 
 use crate::network::command::Command;
-
-// static NODE_ID: OnceLock<u32> = OnceLock::new();
-// static MINER_ADDRESS: OnceLock<String> = OnceLock::new();
-// static KNOWN_HOSTS: LazyLock<RwLock<Vec<String>>> =
-//     LazyLock::new(|| RwLock::new(vec![String::from("localhost:3000")]));
 
 struct Server {
     pub node_id: u32,
@@ -64,7 +57,16 @@ impl Decoder for LengthHeaderDelimiter {
     type Error = io::Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        todo!()
+        let _ver = u8::from_be_bytes(src[..1].try_into().unwrap());
+        let len = u32::from_be_bytes(src[1..4].try_into().unwrap());
+
+        if src.len() < len as usize {
+            return Ok(None);
+        }
+
+        let payload: Vec<u8> = src.split_to(5 + len as usize).into();
+
+        Ok(Some(payload))
     }
 }
 
@@ -72,8 +74,12 @@ impl Encoder<BytesMut> for LengthHeaderDelimiter {
     type Error = io::Error;
 
     fn encode(&mut self, item: BytesMut, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        dst.reserve(additional);
-        todo!()
+        let len = item.len();
+
+        dst.reserve(len);
+        dst.put(item);
+
+        Ok(())
     }
 }
 
@@ -84,10 +90,12 @@ trait Transmitter {
 
 impl Transmitter for Server {
     async fn transmit<T: Command>(&self, addr: &str, cmd: T) {
-        // serialize cmd data
-        let payload = cmd.serialize();
         // dial to target addr
-        let mut client = TcpStream::connect(addr).await.unwrap();
-        client.write_all(&payload);
+        let client_stream = TcpStream::connect(addr).await.unwrap();
+        let mut framed = Framed::new(client_stream, LengthHeaderDelimiter {});
+
+        let mut payload = BytesMut::new();
+        payload.extend_from_slice(&cmd.serialize());
+        framed.send(payload).await.unwrap();
     }
 }
