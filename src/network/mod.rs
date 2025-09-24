@@ -1,7 +1,9 @@
 pub mod command;
 
+use std::os::unix::process;
+
 use bytes::{BufMut, BytesMut};
-use futures::SinkExt;
+use futures::{SinkExt, StreamExt};
 use tokio::{
     io::{self},
     net::{TcpListener, TcpStream},
@@ -45,7 +47,15 @@ impl Server {
         // process income
         loop {
             let (socket, _) = listener.accept().await.unwrap();
+            let mut framed = Framed::new(socket, LengthHeaderDelimiter {});
+            while let Some(Ok(package)) = framed.next().await {
+                self.process(package).await;
+            }
         }
+    }
+
+    async fn process(&self, package: Vec<u8>) {
+
     }
 }
 
