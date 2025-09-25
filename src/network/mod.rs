@@ -1,7 +1,6 @@
 pub mod command;
 
-use std::os::unix::process;
-
+use bincode::config;
 use bytes::{BufMut, BytesMut};
 use futures::{SinkExt, StreamExt};
 use tokio::{
@@ -10,7 +9,10 @@ use tokio::{
 };
 use tokio_util::codec::{Decoder, Encoder, Framed};
 
-use crate::network::command::Command;
+use crate::{
+    blockchain::Blockchain,
+    network::command::{Cmd, Command, HeightCmd},
+};
 
 struct Server {
     pub node_id: u32,
@@ -34,7 +36,8 @@ impl Server {
     /// - `node_id` (`u32`) - node_id
     /// - `miner_address` (`String`) - miner address
     pub async fn start_node(&self) {
-
+        // continue local blockchain
+        let blockchain = Blockchain::continue_chain();
         // start node server
         let addr = format!("localhost:{}", self.node_id);
         let listener = TcpListener::bind(&addr).await.unwrap();
@@ -49,16 +52,38 @@ impl Server {
             let (socket, _) = listener.accept().await.unwrap();
             let mut framed = Framed::new(socket, LengthHeaderDelimiter {});
             while let Some(Ok(package)) = framed.next().await {
-                self.process(package).await;
+                self.process(package, &blockchain).await;
             }
         }
     }
 
-    async fn process(&self, package: Vec<u8>) {
+    async fn process(&self, package: Vec<u8>, blockchain: &Blockchain) {
+        // let ver = package[0];
+        let cmd = Cmd::decode(package[5..7].try_into().unwrap());
+
+        match cmd {
+            Cmd::Height => self.handle_height(package, blockchain).await,
+            Cmd::Unknown => {
+                println!("Receive unknown cmd!!");
+            }
+        }
+    }
+
+    async fn handle_height(&self, package: Vec<u8>, blockchain: &Blockchain) {
+        let (payload, _): (HeightCmd, usize) =
+            bincode::decode_from_slice(&package[7..], config::standard()).unwrap();
+        let local_height = blockchain.get_height();
+        if local_height > payload.height as u128 {
+            // send version
+        } else {
+            // send get blocks
+        }
+    }
+
+    async fn send_height() {
 
     }
 }
-
 
 pub struct LengthHeaderDelimiter;
 
@@ -92,7 +117,6 @@ impl Encoder<BytesMut> for LengthHeaderDelimiter {
         Ok(())
     }
 }
-
 
 trait Transmitter {
     async fn transmit<T: Command>(&self, addr: &str, cmd: T);
