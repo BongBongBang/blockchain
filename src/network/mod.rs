@@ -8,7 +8,7 @@ use clap::Id;
 use futures::{SinkExt, StreamExt};
 use tokio::{
     io::{self},
-    net::{TcpListener, TcpStream},
+    net::{TcpListener, TcpStream}, sync::Mutex,
 };
 use tokio_util::codec::{Decoder, Encoder, Framed};
 
@@ -24,6 +24,7 @@ struct Server {
     pub node_address: Arc<String>,
     pub miner_address: String,
     pub known_hosts: Vec<String>,
+    // todo!Mutex
     pub blocks_in_transimission: HashMap<String, VecDeque<String>>,
 }
 
@@ -124,11 +125,11 @@ impl Server {
         // 获取下一个待获取的block
         if !self.blocks_in_transimission.is_empty() {
 
-            let key = self.blocks_in_transimission.keys().next().unwrap().clone();
-            let blocks = self.blocks_in_transimission.get_mut(key).unwrap();
+            let host_key = self.blocks_in_transimission.keys().next().unwrap().clone();
+            let blocks = self.blocks_in_transimission.get_mut(&host_key).unwrap();
             let block_to_get = blocks.pop_front().unwrap();
 
-            self.send_getdata(&payload.node_addr, InvType::Block, &block_to_get);
+            self.send_getdata(&host_key, InvType::Block, &block_to_get);
         }
     }
 
