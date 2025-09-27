@@ -1,7 +1,10 @@
 pub mod command;
 
+use std::{collections::{HashMap, VecDeque}, sync::Arc};
+
 use bincode::config;
 use bytes::{BufMut, BytesMut};
+use clap::Id;
 use futures::{SinkExt, StreamExt};
 use tokio::{
     io::{self},
@@ -11,21 +14,27 @@ use tokio_util::codec::{Decoder, Encoder, Framed};
 
 use crate::{
     blockchain::Blockchain,
-    network::command::{Cmd, Command, HeightCmd},
+    network::command::{
+        Cmd, Command, GetDataCmd, GetblocksCmd, HeightCmd, InvType, SendBlockCmd, SendInvCmd,
+    },
 };
 
 struct Server {
     pub node_id: u32,
+    pub node_address: Arc<String>,
     pub miner_address: String,
     pub known_hosts: Vec<String>,
+    pub blocks_in_transimission: HashMap<String, VecDeque<String>>,
 }
 
 impl Server {
     pub fn new(node_id: u32, miner_address: String) -> Self {
         Self {
             node_id,
+            node_address: Arc::new(format!("localhost:{}", node_id)),
             miner_address,
             known_hosts: vec![String::from("localhost:3000")],
+            blocks_in_transimission: HashMap::default(),
         }
     }
 
@@ -63,10 +72,98 @@ impl Server {
 
         match cmd {
             Cmd::Height => self.handle_height(package, blockchain).await,
+            Cmd::Getblocks => self.handle_getblocks(package, blockchain).await,
+            Cmd::SendInv => self.handle_sendinvcmd(package).await,
+            Cmd::GetData => self.handle_getdatacmd(package, blockchain).await,
+            Cmd::SendBlock => self.handle_sendblockcmd(package, blockchain).await,
+            Cmd::SendTx => {}
             Cmd::Unknown => {
                 println!("Receive unknown cmd!!");
             }
         }
+    }
+
+    async fn handle_getblocks(&self, package: Vec<u8>, blockchain: &Blockchain) {
+        let (payload, _): (GetblocksCmd, usize) =
+            bincode::decode_from_slice(&package[7..], config::standard()).unwrap();
+        let addr_from = payload.node_addr;
+        let block_hashes = blockchain.get_block_hashes();
+
+        let node_addr = Arc::clone(&self.node_address);
+        let send_inv_cmd = SendInvCmd::new(node_addr, InvType::Block, block_hashes);
+
+        self.transmit(&addr_from, send_inv_cmd);
+    }
+
+    async fn handle_sendinvcmd(&self, package: Vec<u8>) {
+        let (payload, _): (SendInvCmd, usize) =
+            bincode::decode_from_slice(&package[7..], config::standard()).unwrap();
+
+        let inv_type = payload.inv_type;
+        for id in payload.items.iter() {
+            match inv_type {
+                InvType::Block => {
+                    self.send_getdata(&payload.node_addr, InvType::Block, id)
+                        .await;
+                }
+                InvType::Tx => {
+                    self.send_getdata(&payload.node_addr, InvType::Tx, id).await;
+                }
+            }
+        }
+    }
+
+    async fn handle_sendblockcmd(&mut self, package: Vec<u8>, blockchain: &Blockchain) {
+        let (payload, _): (SendBlockCmd, usize) =
+            bincode::decode_from_slice(&package[7..], config::standard()).unwrap();
+
+        // 添加block入库
+        let block = payload.block;
+        blockchain.add_block(block);
+
+        // 获取下一个待获取的block
+        if !self.blocks_in_transimission.is_empty() {
+
+            let key = self.blocks_in_transimission.keys().next().unwrap().clone();
+            let blocks = self.blocks_in_transimission.get_mut(key).unwrap();
+            let block_to_get = blocks.pop_front().unwrap();
+
+            self.send_getdata(&payload.node_addr, InvType::Block, &block_to_get);
+        }
+    }
+
+    async fn handle_getdatacmd(&self, package: Vec<u8>, blockchain: &Blockchain) {
+        let (payload, _): (GetDataCmd, usize) =
+            bincode::decode_from_slice(&package[7..], config::standard()).unwrap();
+
+        let id = payload.id;
+        let addr_from = payload.node_addr;
+        match payload.inv_type {
+            InvType::Block => {
+                let id_bytes = hex::decode(&id).unwrap();
+                if let Some(block) = blockchain.get_block(&id_bytes) {
+                    let send_block_cmd = SendBlockCmd::new(Arc::clone(&self.node_address), block);
+                    self.transmit(&addr_from, send_block_cmd).await;
+                } else {
+                    println!("Cannot find target block, id: {}", &id);
+                }
+            }
+            InvType::Tx => {
+                todo!();
+            }
+        }
+    }
+
+    async fn send_getdata(&self, addr: &str, inv_type: InvType, id: &str) -> Result<(), io::Error> {
+        let get_data_cmd = GetDataCmd {
+            node_addr: Arc::clone(&self.node_address),
+            inv_type,
+            id: id.to_string(),
+        };
+
+        self.transmit(&addr, get_data_cmd).await?;
+
+        Ok(())
     }
 
     async fn handle_height(&self, package: Vec<u8>, blockchain: &Blockchain) {
@@ -75,13 +172,30 @@ impl Server {
         let local_height = blockchain.get_height();
         if local_height > payload.height as u128 {
             // send version
+            self.send_height(payload.node_addr, blockchain).await;
         } else {
             // send get blocks
+            self.send_getblocks(payload.node_addr).await;
         }
     }
 
-    async fn send_height() {
+    async fn send_height(
+        &self,
+        addr: Arc<String>,
+        blockchain: &Blockchain,
+    ) -> Result<(), io::Error> {
+        let height = blockchain.get_height();
+        let height_cmd = HeightCmd::new(self.node_address.clone(), height as u32);
+        self.transmit(&addr, height_cmd).await?;
 
+        Ok(())
+    }
+
+    async fn send_getblocks(&self, addr: Arc<String>) -> Result<(), io::Error> {
+        let cmd = GetblocksCmd::new(self.node_address.clone());
+        self.transmit(&addr, cmd).await?;
+
+        Ok(())
     }
 }
 
@@ -119,17 +233,20 @@ impl Encoder<BytesMut> for LengthHeaderDelimiter {
 }
 
 trait Transmitter {
-    async fn transmit<T: Command>(&self, addr: &str, cmd: T);
+    async fn transmit<T: Command>(&self, addr: &str, cmd: T) -> Result<(), io::Error>;
 }
 
 impl Transmitter for Server {
-    async fn transmit<T: Command>(&self, addr: &str, cmd: T) {
+    async fn transmit<T: Command>(&self, addr: &str, cmd: T) -> Result<(), io::Error> {
         // dial to target addr
         let client_stream = TcpStream::connect(addr).await.unwrap();
         let mut framed = Framed::new(client_stream, LengthHeaderDelimiter {});
 
         let mut payload = BytesMut::new();
         payload.extend_from_slice(&cmd.serialize());
-        framed.send(payload).await.unwrap();
+        // framed.send.await返回的是Result<(), framed的编解码器的错误类型>
+        framed.send(payload).await?;
+
+        Ok(())
     }
 }
