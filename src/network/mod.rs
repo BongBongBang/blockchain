@@ -99,6 +99,16 @@ impl Server {
         let (payload, _): (SendInvCmd, usize) =
             bincode::decode_from_slice(&package[7..], config::standard()).unwrap();
 
+        // 取出当前请求的block id
+        let mut items_deque: VecDeque<String> = payload.items.into_iter().collect();
+        let id = items_deque.pop_front().unwrap_or_default();
+
+        // 剩下的直接存到server.blocks_in_transimission
+        // todo!: host_key下原有的带请求blocks
+        self.blocks_in_transimission
+            .insert(payload.node_addr.to_string(), items_deque);
+
+        // 发出请求getdata
         let inv_type = payload.inv_type;
         let mut block_ids: VecDeque<String> = payload.items.into_iter().collect();
         let block_id = block_ids.pop_front().unwrap();
