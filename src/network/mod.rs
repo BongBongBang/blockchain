@@ -1,14 +1,19 @@
 pub mod command;
 
-use std::{collections::{HashMap, VecDeque}, sync::Arc};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+};
 
 use bincode::config;
 use bytes::{BufMut, BytesMut};
 use clap::Id;
 use futures::{SinkExt, StreamExt};
+use k256::elliptic_curve::rand_core::block;
 use tokio::{
     io::{self},
-    net::{TcpListener, TcpStream}, sync::Mutex,
+    net::{TcpListener, TcpStream},
+    sync::Mutex,
 };
 use tokio_util::codec::{Decoder, Encoder, Framed};
 
@@ -67,7 +72,7 @@ impl Server {
         }
     }
 
-    async fn process(&self, package: Vec<u8>, blockchain: &Blockchain) {
+    async fn process(&mut self, package: Vec<u8>, blockchain: &Blockchain) {
         // let ver = package[0];
         let cmd = Cmd::decode(package[5..7].try_into().unwrap());
 
@@ -96,20 +101,25 @@ impl Server {
         self.transmit(&addr_from, send_inv_cmd);
     }
 
-    async fn handle_sendinvcmd(&self, package: Vec<u8>) {
+    async fn handle_sendinvcmd(&mut self, package: Vec<u8>) {
         let (payload, _): (SendInvCmd, usize) =
             bincode::decode_from_slice(&package[7..], config::standard()).unwrap();
 
         let inv_type = payload.inv_type;
-        for id in payload.items.iter() {
-            match inv_type {
-                InvType::Block => {
-                    self.send_getdata(&payload.node_addr, InvType::Block, id)
-                        .await;
-                }
-                InvType::Tx => {
-                    self.send_getdata(&payload.node_addr, InvType::Tx, id).await;
-                }
+        let mut block_ids: VecDeque<String> = payload.items.into_iter().collect();
+        let block_id = block_ids.pop_front().unwrap();
+
+        // 剩下的传输blocs存到变量里
+        self.blocks_in_transimission
+            .insert(payload.node_addr.to_string(), block_ids);
+
+        match inv_type {
+            InvType::Block => {
+                self.send_getdata(&payload.node_addr, InvType::Block, &block_id)
+                    .await;
+            }
+            InvType::Tx => {
+                self.send_getdata(&payload.node_addr, InvType::Tx, &block_id).await;
             }
         }
     }
@@ -124,7 +134,6 @@ impl Server {
 
         // 获取下一个待获取的block
         if !self.blocks_in_transimission.is_empty() {
-
             let host_key = self.blocks_in_transimission.keys().next().unwrap().clone();
             let blocks = self.blocks_in_transimission.get_mut(&host_key).unwrap();
             let block_to_get = blocks.pop_front().unwrap();
