@@ -7,14 +7,8 @@ use std::{
 
 use bincode::config;
 use bytes::{BufMut, BytesMut};
-use clap::Id;
 use futures::{SinkExt, StreamExt};
-use k256::elliptic_curve::rand_core::block;
-use tokio::{
-    io::{self},
-    net::{TcpListener, TcpStream},
-    sync::Mutex,
-};
+use tokio::{io, net::{TcpListener, TcpStream}};
 use tokio_util::codec::{Decoder, Encoder, Framed};
 
 use crate::{
@@ -50,7 +44,7 @@ impl Server {
     ///
     /// - `node_id` (`u32`) - node_id
     /// - `miner_address` (`String`) - miner address
-    pub async fn start_node(&self) {
+    pub async fn start_node(&mut self) {
         // continue local blockchain
         let blockchain = Blockchain::continue_chain();
         // start node server

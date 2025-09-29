@@ -9,17 +9,17 @@ pub struct Wallets {
     pub wallets: HashMap<String, Wallet>,
 }
 
-const WALLET_FILE: &str = "./tmp/wallets.data";
-
 impl Wallets {
-    pub fn new() -> Self {
+    pub fn new(node_id: u32) -> Self {
         let wallets_map = HashMap::new();
 
+        // 初始化Wallets struct
         let mut wallets = Wallets {
             wallets: wallets_map,
         };
+
         // 加载本地的钱包文件
-        wallets.load_file();
+        wallets.load_file(node_id);
 
         wallets
     }
@@ -64,8 +64,9 @@ impl Wallets {
         self.wallets.get_mut(address)
     }
 
-    fn load_file(&mut self) {
-        if let Ok(data) = fs::read(WALLET_FILE) {
+    fn load_file(&mut self, node_id: u32) {
+        let wallet_file_path = format!("./tmp/wallets_{}.data", node_id);
+        if let Ok(data) = fs::read(wallet_file_path) {
             if let Ok(decoded) = bincode::decode_from_slice::<Wallets, _>(&data, standard()) {
                 let wallets = decoded.0.wallets;
                 self.wallets = wallets;
@@ -73,13 +74,14 @@ impl Wallets {
         }
     }
 
-    pub fn save_file(&self) {
+    pub fn save_file(&self, node_id: u32) {
+        let wallet_file_path = format!("./tmp/wallets_{}.data", node_id);
         let bytes = bincode::encode_to_vec(&self, standard()).unwrap();
-        let path = Path::new(WALLET_FILE);
+        let path = Path::new(&wallet_file_path);
         if let Some(parent_path) = path.parent() {
             let _ = fs::create_dir_all(parent_path).expect("创建钱包目录地址失败!");
         }
-        let mut file = File::create(WALLET_FILE).unwrap();
+        let mut file = File::create(&wallet_file_path).unwrap();
         let _ = file.write_all(&bytes).expect("持久化钱包数据失败！");
     }
 }

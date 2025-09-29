@@ -10,7 +10,7 @@ use crate::{
     transaction::Transaction,
     utxo::UTXOSet,
     wallet::{self, Wallet},
-    wallets::Wallets,
+    wallets::{self, Wallets},
 };
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
@@ -31,20 +31,35 @@ pub enum CliOperation {
     ListAddress,
     #[clap(rename_all = "kebab-case")]
     Rebuild,
+    #[clap(rename_all = "kebab-case")]
+    StartNode,
 }
 
 #[derive(Parser, Debug)]
 pub struct CliParam {
     #[arg(index = 1)]
     pub operation: CliOperation,
+
     #[arg(long = "address")]
     pub address: Option<String>,
+
     #[arg(long = "from")]
     pub from: Option<String>,
+
     #[arg(long = "to")]
     pub to: Option<String>,
+
     #[arg(long = "amount")]
     pub amount: Option<u128>,
+
+    #[arg(long = "miner-address")]
+    pub miner_address: Option<String>,
+
+    #[arg(long = "node-id")]
+    pub node_id: Option<u32>,
+
+    #[arg(long = "mine")]
+    pub mine: Option<bool>,
 }
 
 impl CliParam {
@@ -79,30 +94,45 @@ impl CommandLine {
             CliOperation::Send => self.send(),
             CliOperation::PrintUsage => self.print_chain(),
             CliOperation::Rebuild => self.rebuild(),
+            CliOperation::StartNode => self.start_node(),
         }
     }
 
     fn print_usage(&self) {
         println!("Usage:");
         println!("get-balance -address ADDRESS - Get the balance for an address");
-        println!("print-chain - Prints the blocks in the chain");
         println!(
             "create-chain -address ADDRESS - Create a blockchain and send genesis reward to address."
         );
-        println!("send -from FROM -to TO -amount AMOUNT - Send amount of coins");
-        println!("create-wallet - Creates a new Wallet");
-        println!("list-address - Lists the addresses in out wallet file");
+        println!("print-chain - Prints the blocks in the chain");
+        println!(
+            "send -from FROM -to TO -amount AMOUNT -mine - Send amount of coins. Then -mine flag is set, mine off of this node."
+        );
+        println!("create-wallet -node NODE_ID - Creates a new Wallet");
+        println!("list-address -node NODE_ID - Lists the addresses in out wallet file");
+        println!("rebuild - Rebuilds the UTXO set.");
+        println!(
+            "startnode -node NODE_ID -miner ADDRESS - Start a node with ID specified in NODE_ID"
+        );
     }
 
-    fn create_wallet(&self) {
-        let mut wallets = Wallets::new();
+    fn start_node(&mut self) {
+        let node_id = self.cli_param.node_id.take().unwrap();
+        let miner_address = self.cli_param.miner_address.take().unwrap();
+        println!("node_id: {}, miner_address: {}", node_id, miner_address);
+    }
+
+    fn create_wallet(&mut self) {
+        let node_id = self.cli_param.node_id.take().unwrap();
+        let mut wallets = Wallets::new(node_id);
         let address = wallets.add_wallet();
-        wallets.save_file();
+        wallets.save_file(node_id);
         println!("Succeed creating wallet: {}\n", address);
     }
 
-    fn get_all_address(&self) {
-        let wallets = Wallets::new();
+    fn get_all_address(&mut self) {
+        let node_id = self.cli_param.node_id.take().unwrap();
+        let wallets = Wallets::new(node_id);
         for address in wallets.get_all_addresses() {
             println!("Address: {}", address);
         }
@@ -187,20 +217,36 @@ impl CommandLine {
         }
         let blockchain = Rc::new(Blockchain::continue_chain());
         let mut utxo_set = UTXOSet::new(Rc::clone(&blockchain));
+        let node_id = self.cli_param.node_id.take().unwrap();
 
-        let mut tx = Transaction::new(
-            &cli_param.from.take().unwrap(),
-            &cli_param.to.take().unwrap(),
-            cli_param.amount.take().unwrap(),
-            &mut utxo_set,
-        );
-         
-        let tx_id = tx.hash();
-        tx.id = tx_id;
+        let mut wallets = Wallets::new(node_id);
+        let addr_from = self.cli_param.from.take().unwrap();
 
-        let block = blockchain.add_block(vec![tx]);
-        utxo_set.update(&block);
+        if let Some(wallet_from) = wallets.get_wallet(&addr_from) {
+            let mut tx = Transaction::new(
+                &mut wallet_from,
+                &cli_param.to.take().unwrap(),
+                cli_param.amount.take().unwrap(),
+                &mut utxo_set,
+            );
 
-        println!("Succeed sending coin!");
+            let tx_id = tx.hash();
+            tx.id = tx_id;
+
+            if self.cli_param.mine.unwrap() {
+                let new_block = blockchain.mine_block(vec![tx]);
+
+                // 更新UTXO set
+                utxo_set.update(&new_block);
+                // block 上链
+                blockchain.add_block(new_block);
+
+                println!("Succeed sending coin!");
+            } else {
+                // todo: send tcp tx to center node
+            }
+        } else {
+            panic!("不存在from钱包: {}", addr_from)
+        }
     }
 }

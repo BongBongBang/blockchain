@@ -109,25 +109,10 @@ impl Transaction {
         tx
     }
 
-    pub fn new(from: &str, to: &str, amount: u128, utxo_set: &mut UTXOSet) -> Self {
-        let mut wallets = Wallets::new();
-
-        {
-            let to_wallet_op = wallets.get_wallet(to);
-            if to_wallet_op.is_none() {
-                panic!("不存在接收钱包: {}", to);
-            }
-        }
-
-        let from_wallet_op = wallets.get_wallet_mut(from);
-        if from_wallet_op.is_none() {
-            panic!("不存在来源钱包: {}", from);
-        }
-        let from_wallet = from_wallet_op.unwrap();
-
+    pub fn new(from_wallet: &mut Wallet, to: &str, amount: u128, utxo_set: &mut UTXOSet) -> Self {
         let (accumulated, valid_outputs) = utxo_set
             .find_spendable_outputs(&Wallet::hash_pub_key(&from_wallet.pub_key), amount)
-            .expect(&format!("Address [{}] does'nt have enough money!", from));
+            .expect(&format!("Address [{}] does'nt have enough money!", from_wallet.address()));
 
         let mut inputs = vec![];
 
@@ -150,7 +135,7 @@ impl Transaction {
         outputs.push(to_output);
 
         if accumulated > amount {
-            let remain_output = TxOutput::new(accumulated - amount, from.to_string());
+            let remain_output = TxOutput::new(accumulated - amount, from_wallet.address());
             outputs.push(remain_output);
         }
 

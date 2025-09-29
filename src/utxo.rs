@@ -134,7 +134,7 @@ impl<'a> UTXOSet {
     ///
     /// - `&self` (`undefined`) - UTXO
     /// - `block` (`&'a Block`) - Block
-    pub fn update(&self, block:&Block) {
+    pub fn update(&self, block: &Block) {
         for tx in &block.transactions {
             let database = self.blockchain.database.lock().unwrap();
 
