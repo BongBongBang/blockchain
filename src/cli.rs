@@ -1,16 +1,14 @@
-use std::rc::Rc;
+use std::{rc::Rc, sync::Arc};
 
 use base58::FromBase58;
+use bytes::BytesMut;
 use clap::{Parser, ValueEnum};
+use futures::SinkExt;
+use tokio::net::{TcpSocket, TcpStream};
+use tokio_util::codec::Framed;
 
 use crate::{
-    blockchain::Blockchain,
-    cli,
-    proof_of_work::ProofOfWork,
-    transaction::Transaction,
-    utxo::UTXOSet,
-    wallet::{self, Wallet},
-    wallets::{self, Wallets},
+    blockchain::Blockchain, cli, network::{command::{Command, SendTxCmd}, LengthHeaderDelimiter}, proof_of_work::ProofOfWork, transaction::Transaction, utxo::UTXOSet, wallet::{self, Wallet}, wallets::{self, Wallets}
 };
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
@@ -84,14 +82,14 @@ impl CommandLine {
         CommandLine { cli_param: cli }
     }
 
-    pub fn run(&mut self) {
+    pub async fn run(&mut self) {
         match self.cli_param.operation {
             CliOperation::CreateChain => self.create_chain(),
             CliOperation::GetBalance => self.get_balance(),
             CliOperation::PrintChain => self.print_chain(),
             CliOperation::CreateWallet => self.create_wallet(),
             CliOperation::ListAddress => self.get_all_address(),
-            CliOperation::Send => self.send(),
+            CliOperation::Send => self.send().await,
             CliOperation::PrintUsage => self.print_chain(),
             CliOperation::Rebuild => self.rebuild(),
             CliOperation::StartNode => self.start_node(),
@@ -199,32 +197,34 @@ impl CommandLine {
         }
     }
 
-    fn send(&mut self) {
+    async fn send(&mut self) {
         let cli_param = &mut self.cli_param;
-
+        // 校验发送、接收钱包地址
         if !Wallet::validate_address(&cli_param.from.as_deref().unwrap()) {
             panic!(
                 "From address: {} is not a valid address",
                 &cli_param.from.take().unwrap()
             );
         }
-
         if !Wallet::validate_address(&cli_param.to.as_deref().unwrap()) {
             panic!(
                 "To address: {} is not a valid address",
                 &cli_param.to.take().unwrap()
             );
         }
+
         let blockchain = Rc::new(Blockchain::continue_chain());
         let mut utxo_set = UTXOSet::new(Rc::clone(&blockchain));
-        let node_id = self.cli_param.node_id.take().unwrap();
 
-        let mut wallets = Wallets::new(node_id);
-        let addr_from = self.cli_param.from.take().unwrap();
+        let node_id = cli_param.node_id.take().unwrap();
+        let addr_from = cli_param.from.take().unwrap();
 
+        let wallets = Wallets::new(node_id);
+
+        // 获取转账钱包记录
         if let Some(wallet_from) = wallets.get_wallet(&addr_from) {
             let mut tx = Transaction::new(
-                &mut wallet_from,
+                &wallet_from,
                 &cli_param.to.take().unwrap(),
                 cli_param.amount.take().unwrap(),
                 &mut utxo_set,
@@ -235,15 +235,19 @@ impl CommandLine {
 
             if self.cli_param.mine.unwrap() {
                 let new_block = blockchain.mine_block(vec![tx]);
-
                 // 更新UTXO set
                 utxo_set.update(&new_block);
-                // block 上链
-                blockchain.add_block(new_block);
-
                 println!("Succeed sending coin!");
             } else {
                 // todo: send tcp tx to center node
+                let tcp_stream = TcpStream::connect("localhost:3000").await.unwrap();
+                let mut framed = Framed::new(tcp_stream, LengthHeaderDelimiter {});
+
+                let cmd = SendTxCmd::new(Arc::new(String::from("localhost:3000")), tx);
+                let mut payload = BytesMut::new();
+                payload.extend_from_slice(&cmd.serialize());
+                framed.send(payload).await;
+                println!("Sent Tx to center node!");
             }
         } else {
             panic!("不存在from钱包: {}", addr_from)

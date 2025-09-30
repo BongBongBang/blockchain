@@ -109,7 +109,7 @@ impl Transaction {
         tx
     }
 
-    pub fn new(from_wallet: &mut Wallet, to: &str, amount: u128, utxo_set: &mut UTXOSet) -> Self {
+    pub fn new(from_wallet: &Wallet, to: &str, amount: u128, utxo_set: &mut UTXOSet) -> Self {
         let (accumulated, valid_outputs) = utxo_set
             .find_spendable_outputs(&Wallet::hash_pub_key(&from_wallet.pub_key), amount)
             .expect(&format!("Address [{}] does'nt have enough money!", from_wallet.address()));

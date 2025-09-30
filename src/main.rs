@@ -2,14 +2,14 @@
 mod block;
 mod blockchain;
 mod cli;
-mod proof_of_work;
-mod transaction;
-mod wallet;
-mod wallets;
-mod tx;
-mod utxo;
 mod merkle;
 mod network;
+mod proof_of_work;
+mod transaction;
+mod tx;
+mod utxo;
+mod wallet;
+mod wallets;
 
 use std::sync::Mutex;
 
@@ -56,8 +56,9 @@ impl Drop for AtExitMonitor {
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let _exit_hook = AtExitMonitor;
     let mut command_line = CommandLine::new();
-    command_line.run();
+    command_line.run().await;
 }
