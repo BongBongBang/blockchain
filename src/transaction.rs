@@ -111,7 +111,10 @@ impl Transaction {
     pub fn new(from_wallet: &mut Wallet, to: &str, amount: u128, utxo_set: &mut UTXOSet) -> Self {
         let (accumulated, valid_outputs) = utxo_set
             .find_spendable_outputs(&Wallet::hash_pub_key(&from_wallet.pub_key), amount)
-            .expect(&format!("Address [{}] does'nt have enough money!", from_wallet.address()));
+            .expect(&format!(
+                "Address [{}] does'nt have enough money!",
+                from_wallet.address()
+            ));
 
         let mut inputs = vec![];
 
@@ -234,7 +237,7 @@ impl Transaction {
             let hash = Sha256::digest(bincode::encode_to_vec(&tx_copy, standard()).unwrap());
 
             let signature: ecdsa::Signature = signing_key.sign(&hash);
-            let input = tx_copy.inputs.get_mut(idx).unwrap();
+            let input = self.inputs.get_mut(idx).unwrap();
             input.sig = signature.to_vec();
         }
     }

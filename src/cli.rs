@@ -90,7 +90,7 @@ impl CommandLine {
             CliOperation::CreateWallet => self.create_wallet(),
             CliOperation::ListAddress => self.get_all_address(),
             CliOperation::Send => self.send().await,
-            CliOperation::PrintUsage => self.print_chain(),
+            CliOperation::PrintUsage => self.print_usage(),
             CliOperation::Rebuild => self.rebuild(),
             CliOperation::StartNode => self.start_node(),
         }
@@ -106,11 +106,11 @@ impl CommandLine {
         println!(
             "send -from FROM -to TO -amount AMOUNT -mine - Send amount of coins. Then -mine flag is set, mine off of this node."
         );
-        println!("create-wallet -node NODE_ID - Creates a new Wallet");
-        println!("list-address -node NODE_ID - Lists the addresses in out wallet file");
+        println!("create-wallet -node-id NODE_ID - Creates a new Wallet");
+        println!("list-address -node-id NODE_ID - Lists the addresses in out wallet file");
         println!("rebuild - Rebuilds the UTXO set.");
         println!(
-            "startnode -node NODE_ID -miner ADDRESS - Start a node with ID specified in NODE_ID"
+            "startnode -node-id NODE_ID -miner ADDRESS - Start a node with ID specified in NODE_ID"
         );
     }
 
@@ -223,6 +223,7 @@ impl CommandLine {
 
         // 获取转账钱包记录
         if let Some(wallet_from) = wallets.get_wallet_mut(&addr_from) {
+
             let mut tx = Transaction::new(
                 wallet_from,
                 &cli_param.to.take().unwrap(),

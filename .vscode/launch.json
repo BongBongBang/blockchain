@@ -7,7 +7,7 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Send",
+            "name": "Debug Send",
             "cargo": {
                 "args": [
                     "build",
@@ -22,69 +22,17 @@
             "args": [
                 "send",
                 "--from",
-                "1Emz2Ddy7VhbU7gJ2vnzWpfTjFrL5hnCGf",
+                "1FzjAR5tjyKanHeZa1o5U6Sz2ajSvS79Cf",
                 "--to",
-                "1QH7hF8apNN5noyHyfV4ZjDVTF3hNkzo4S",
+                "1NwEpJCM2m4SogvLaaAxXaRuZZvjaxsR5u",
                 "--amount",
-                "11"
+                "19",
+                "--mine",
+                "true",
+                "--node-id",
+                "8090"
             ],
-            "cwd": "${workspaceFolder}",
-            "sourceLanguages": [
-                "rust"
-            ],
-            "env": {
-                "RUST_BACKTRACE": "1"
-            }
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "GetBalance",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--bin=blockchain",
-                    "--package=blockchain"
-                ],
-                "filter": {
-                    "name": "blockchain",
-                    "kind": "bin"
-                }
-            },
-            "args": [
-                "get-balance",
-                "--address",
-                "aaron",
-            ],
-            "cwd": "${workspaceFolder}",
-            "sourceLanguages": [
-                "rust"
-            ],
-            "env": {
-                "RUST_BACKTRACE": "1"
-            }
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in executable 'blockchain'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--bin=blockchain",
-                    "--package=blockchain"
-                ],
-                "filter": {
-                    "name": "blockchain",
-                    "kind": "bin"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}",
-            "sourceLanguages": [
-                "rust"
-            ]
+            "cwd": "${workspaceFolder}"
         }
     ]
 }
