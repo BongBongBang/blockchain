@@ -229,9 +229,9 @@ impl Blockchain {
 
         // save new block & update lsh
         let new_block_bytes = bincode::encode_to_vec(new_block, config::standard()).unwrap();
-        database.insert(&block.hash, new_block_bytes);
+        database.insert(&block.hash, new_block_bytes).unwrap();
         let hash_bytes = hex::decode(&block.hash).unwrap();
-        database.insert(LATEST_HASH_KEY, hash_bytes);
+        database.insert(LATEST_HASH_KEY, hash_bytes).unwrap();
 
         block
     }
@@ -335,7 +335,7 @@ impl Blockchain {
     /// - `priv_key` (`&SigningKey`) - 签名的私钥
     /// # Returns
     ///
-    pub fn sign_transaction(&self, tx_to_sign: &mut Transaction, priv_key: &SigningKey) {
+    pub fn sign_transaction(&self, tx_to_sign: &mut Transaction, priv_key: &mut SigningKey) {
         let mut prev_txs: HashMap<String, Transaction> = HashMap::new();
         for input in &tx_to_sign.inputs {
             let tx = self.find_transaction(&input.tx_id);

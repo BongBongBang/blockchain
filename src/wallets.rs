@@ -56,11 +56,11 @@ impl Wallets {
     /// # Returns
     ///
     /// - `Option<&'a Wallet>` - Wallet instance
-    pub fn get_wallet<'a>(&'a self, address: &str) -> Option<&'a Wallet> {
+    pub fn get_wallet(&self, address: &str) -> Option<&Wallet> {
         self.wallets.get(address)
     }
 
-    pub fn get_wallet_mut<'a>(&'a mut self, address: &str) -> Option<&'a mut Wallet> {
+    pub fn get_wallet_mut(&mut self, address: &str) -> Option<&mut Wallet> {
         self.wallets.get_mut(address)
     }
 

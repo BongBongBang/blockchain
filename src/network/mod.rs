@@ -92,7 +92,7 @@ impl Server {
         let node_addr = Arc::clone(&self.node_address);
         let send_inv_cmd = SendInvCmd::new(node_addr, InvType::Block, block_hashes);
 
-        self.transmit(&addr_from, send_inv_cmd);
+        self.transmit(&addr_from, send_inv_cmd).await.unwrap();
     }
 
     async fn handle_sendinvcmd(&mut self, package: Vec<u8>) {
@@ -112,10 +112,10 @@ impl Server {
         match inv_type {
             InvType::Block => {
                 self.send_getdata(&payload.node_addr, InvType::Block, &block_id)
-                    .await;
+                    .await.unwrap();
             }
             InvType::Tx => {
-                self.send_getdata(&payload.node_addr, InvType::Tx, &block_id).await;
+                self.send_getdata(&payload.node_addr, InvType::Tx, &block_id).await.unwrap();
             }
         }
     }
@@ -134,7 +134,7 @@ impl Server {
             let blocks = self.blocks_in_transimission.get_mut(&host_key).unwrap();
             let block_to_get = blocks.pop_front().unwrap();
 
-            self.send_getdata(&host_key, InvType::Block, &block_to_get);
+            self.send_getdata(&host_key, InvType::Block, &block_to_get).await.unwrap();
         }
     }
 
@@ -149,7 +149,7 @@ impl Server {
                 let id_bytes = hex::decode(&id).unwrap();
                 if let Some(block) = blockchain.get_block(&id_bytes) {
                     let send_block_cmd = SendBlockCmd::new(Arc::clone(&self.node_address), block);
-                    self.transmit(&addr_from, send_block_cmd).await;
+                    self.transmit(&addr_from, send_block_cmd).await.unwrap();
                 } else {
                     println!("Cannot find target block, id: {}", &id);
                 }
@@ -178,10 +178,10 @@ impl Server {
         let local_height = blockchain.get_height();
         if local_height > payload.height as u128 {
             // send version
-            self.send_height(payload.node_addr, blockchain).await;
+            self.send_height(payload.node_addr, blockchain).await.unwrap();
         } else {
             // send get blocks
-            self.send_getblocks(payload.node_addr).await;
+            self.send_getblocks(payload.node_addr).await.unwrap();
         }
     }
 

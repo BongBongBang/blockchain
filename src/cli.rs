@@ -4,11 +4,11 @@ use base58::FromBase58;
 use bytes::BytesMut;
 use clap::{Parser, ValueEnum};
 use futures::SinkExt;
-use tokio::net::{TcpSocket, TcpStream};
+use tokio::net::TcpStream;
 use tokio_util::codec::Framed;
 
 use crate::{
-    blockchain::Blockchain, cli, network::{command::{Command, SendTxCmd}, LengthHeaderDelimiter}, proof_of_work::ProofOfWork, transaction::Transaction, utxo::UTXOSet, wallet::{self, Wallet}, wallets::{self, Wallets}
+    blockchain::Blockchain, cli, network::{command::{Command, SendTxCmd}, LengthHeaderDelimiter}, proof_of_work::ProofOfWork, transaction::Transaction, utxo::UTXOSet, wallet::{self, Wallet}, wallets::Wallets
 };
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
@@ -219,12 +219,12 @@ impl CommandLine {
         let node_id = cli_param.node_id.take().unwrap();
         let addr_from = cli_param.from.take().unwrap();
 
-        let wallets = Wallets::new(node_id);
+        let mut wallets = Wallets::new(node_id);
 
         // 获取转账钱包记录
-        if let Some(wallet_from) = wallets.get_wallet(&addr_from) {
+        if let Some(wallet_from) = wallets.get_wallet_mut(&addr_from) {
             let mut tx = Transaction::new(
-                &wallet_from,
+                wallet_from,
                 &cli_param.to.take().unwrap(),
                 cli_param.amount.take().unwrap(),
                 &mut utxo_set,
@@ -246,7 +246,7 @@ impl CommandLine {
                 let cmd = SendTxCmd::new(Arc::new(String::from("localhost:3000")), tx);
                 let mut payload = BytesMut::new();
                 payload.extend_from_slice(&cmd.serialize());
-                framed.send(payload).await;
+                framed.send(payload).await.unwrap();
                 println!("Sent Tx to center node!");
             }
         } else {
