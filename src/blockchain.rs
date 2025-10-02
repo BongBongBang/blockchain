@@ -223,7 +223,7 @@ impl Blockchain {
         let (last_block, _) : (Block, usize) = bincode::decode_from_slice(&last_block_bytes, config::standard()).unwrap();
 
         // do mine
-        let new_block = Block::create_block(last_block.hash.clone(), transactions, last_block.height);
+        let new_block = Block::create_block(last_block.hash.clone(), transactions, last_block.height + 1);
 
         // save new block & update lsh
         let new_block_bytes = bincode::encode_to_vec(&new_block, config::standard()).unwrap();
