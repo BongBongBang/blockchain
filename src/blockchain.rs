@@ -96,9 +96,7 @@ impl Blockchain {
         let db_client = db_client_mutex.lock().unwrap();
 
         // init coinbase & genesis block
-        let mut coinbase_tx = Transaction::coinbase_tx(to);
-        let tx_id = coinbase_tx.hash();
-        coinbase_tx.id = tx_id;
+        let coinbase_tx = Transaction::coinbase_tx(to);
         let genesis_block = Block::genesis(coinbase_tx);
         let encoded_block = bincode::encode_to_vec(&genesis_block, config::standard())
             .ok()
@@ -222,18 +220,18 @@ impl Blockchain {
 
         let last_block_bytes = database.get(last_hash_key).ok().flatten().unwrap();
 
-        let (block, _) : (Block, usize) = bincode::decode_from_slice(&last_block_bytes, config::standard()).unwrap();
+        let (last_block, _) : (Block, usize) = bincode::decode_from_slice(&last_block_bytes, config::standard()).unwrap();
 
         // do mine
-        let new_block = Block::create_block(block.hash.clone(), transactions, block.height);
+        let new_block = Block::create_block(last_block.hash.clone(), transactions, last_block.height);
 
         // save new block & update lsh
-        let new_block_bytes = bincode::encode_to_vec(new_block, config::standard()).unwrap();
-        database.insert(&block.hash, new_block_bytes).unwrap();
-        let hash_bytes = hex::decode(&block.hash).unwrap();
+        let new_block_bytes = bincode::encode_to_vec(&new_block, config::standard()).unwrap();
+        database.insert(&new_block.hash, new_block_bytes).unwrap();
+        let hash_bytes = hex::decode(&new_block.hash).unwrap();
         database.insert(LATEST_HASH_KEY, hash_bytes).unwrap();
 
-        block
+        new_block
     }
 
     pub fn get_height(&self) -> u128 {
@@ -314,7 +312,7 @@ impl Blockchain {
     /// # Returns
     ///
     /// - `Transaction` - 事务.
-    pub fn find_transaction(&self, tx_id: &Vec<u8>) -> Transaction {
+    pub fn find_transaction(&self, tx_id: &[u8]) -> Transaction {
         let mut iter = self.iterator();
         while let Some(block) = iter.next() {
             for tx in block.transactions {

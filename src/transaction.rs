@@ -33,7 +33,7 @@ impl AsRef<Transaction> for &mut Transaction {
 }
 
 impl Transaction {
-    pub fn hash(&self) -> Vec<u8> {
+    fn hash(&self) -> Vec<u8> {
         let inputs = self
             .inputs
             .iter()
@@ -99,11 +99,14 @@ impl Transaction {
         );
 
         let tx_output = TxOutput::new(100, to);
-        let tx = Transaction {
+        let mut tx = Transaction {
             id: Vec::default(),
             inputs: vec![tx_input],
             outputs: vec![tx_output],
         };
+
+        let tx_id = tx.hash();
+        tx.id = tx_id;
 
         tx
     }
@@ -146,6 +149,9 @@ impl Transaction {
             inputs: inputs,
             outputs: outputs,
         };
+
+        let tx_id = tx.hash();
+        tx.id = tx_id;
 
         utxo_set
             .blockchain
@@ -234,7 +240,8 @@ impl Transaction {
                 input.pub_key = prev_tx.outputs.remove(input.out_idx).pub_key_hash;
             }
 
-            let hash = Sha256::digest(bincode::encode_to_vec(&tx_copy, standard()).unwrap());
+            let encoded_tx = bincode::encode_to_vec(&tx_copy, standard()).unwrap();
+            let hash = Sha256::digest(encoded_tx);
 
             let signature: ecdsa::Signature = signing_key.sign(&hash);
             let input = self.inputs.get_mut(idx).unwrap();
@@ -270,7 +277,8 @@ impl Transaction {
             let prev_tx = prev_txs.get_mut(&tx_id).unwrap();
             tx_copy.inputs[idx].pub_key = prev_tx.outputs.remove(input.out_idx).pub_key_hash;
 
-            let hash = Sha256::digest(bincode::encode_to_vec(&tx_copy, standard()).unwrap());
+            let encoded_tx = bincode::encode_to_vec(&tx_copy, standard()).unwrap();
+            let hash = Sha256::digest(encoded_tx);
 
             let encoded_point = EncodedPoint::from_bytes(&input.pub_key).unwrap();
             let verifying_key = VerifyingKey::from_encoded_point(&encoded_point).unwrap();

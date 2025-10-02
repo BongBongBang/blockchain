@@ -224,15 +224,12 @@ impl CommandLine {
         // 获取转账钱包记录
         if let Some(wallet_from) = wallets.get_wallet_mut(&addr_from) {
 
-            let mut tx = Transaction::new(
+            let tx = Transaction::new(
                 wallet_from,
                 &cli_param.to.take().unwrap(),
                 cli_param.amount.take().unwrap(),
                 &mut utxo_set,
             );
-
-            let tx_id = tx.hash();
-            tx.id = tx_id;
 
             if self.cli_param.mine.unwrap() {
                 let new_block = blockchain.mine_block(vec![tx]);
