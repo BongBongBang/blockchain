@@ -160,6 +160,7 @@ impl CommandLine {
         let mut iter = blockchain.iterator();
         loop {
             if let Some(block) = iter.next() {
+                println!("Height: {}", block.height);
                 println!("Prev hash: {:?}", &block.prev_hash);
                 println!("Hash: {:?}", &block.hash);
                 let pow = ProofOfWork::new(&block);
