@@ -53,9 +53,10 @@ impl Server {
 
         // sync version to center node
         if &addr != self.known_hosts.get(0).unwrap() {
+            println!("Send [version] to center node");
             // send_version();
         }
-
+        println!("Start listening...");
         // process income
         loop {
             let (socket, _) = listener.accept().await.unwrap();
