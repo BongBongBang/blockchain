@@ -18,7 +18,7 @@ use crate::{
     },
 };
 
-struct Server {
+pub struct Server {
     pub node_id: u32,
     pub node_address: Arc<String>,
     pub miner_address: String,

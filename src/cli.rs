@@ -8,7 +8,7 @@ use tokio::net::TcpStream;
 use tokio_util::codec::Framed;
 
 use crate::{
-    blockchain::Blockchain, cli, network::{command::{Command, SendTxCmd}, LengthHeaderDelimiter}, proof_of_work::ProofOfWork, transaction::Transaction, utxo::UTXOSet, wallet::{self, Wallet}, wallets::Wallets
+    blockchain::Blockchain, cli, network::{command::{Command, SendTxCmd}, LengthHeaderDelimiter, Server}, proof_of_work::ProofOfWork, transaction::Transaction, utxo::UTXOSet, wallet::{self, Wallet}, wallets::Wallets
 };
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
@@ -92,7 +92,7 @@ impl CommandLine {
             CliOperation::Send => self.send().await,
             CliOperation::PrintUsage => self.print_usage(),
             CliOperation::Rebuild => self.rebuild(),
-            CliOperation::StartNode => self.start_node(),
+            CliOperation::StartNode => self.start_node().await,
         }
     }
 
@@ -104,20 +104,27 @@ impl CommandLine {
         );
         println!("print-chain - Prints the blocks in the chain");
         println!(
-            "send -from FROM -to TO -amount AMOUNT -mine - Send amount of coins. Then -mine flag is set, mine off of this node."
+            "send --from FROM --to TO --amount AMOUNT --mine - Send amount of coins. Then -mine flag is set, mine off of this node."
         );
-        println!("create-wallet -node-id NODE_ID - Creates a new Wallet");
-        println!("list-address -node-id NODE_ID - Lists the addresses in out wallet file");
+        println!("create-wallet --node-id NODE_ID - Creates a new Wallet");
+        println!("list-address --node-id NODE_ID - Lists the addresses in out wallet file");
         println!("rebuild - Rebuilds the UTXO set.");
         println!(
-            "startnode -node-id NODE_ID -miner ADDRESS - Start a node with ID specified in NODE_ID"
+            "startnode --node-id NODE_ID --miner-address ADDRESS - Start a node with ID specified in NODE_ID"
         );
     }
 
-    fn start_node(&mut self) {
+    async fn start_node(&mut self) {
         let node_id = self.cli_param.node_id.take().unwrap();
-        let miner_address = self.cli_param.miner_address.take().unwrap();
-        println!("node_id: {}, miner_address: {}", node_id, miner_address);
+        if let Some(miner_address) = &self.cli_param.miner_address {
+            if !Wallet::validate_address(miner_address) {
+                panic!("Invalid miner-address: {}", miner_address); 
+            }
+        }
+        // start server
+        let miner_address: String = self.cli_param.miner_address.take().unwrap();
+        let mut server = Server::new(node_id, miner_address); 
+        server.start_node().await;
     }
 
     fn create_wallet(&mut self) {
