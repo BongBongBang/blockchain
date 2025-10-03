@@ -9,7 +9,6 @@ use std::{
 
 use crate::{block::Block, register_exit_callback, transaction::Transaction, tx::TxOutputs};
 
-const DB_PATH: &str = "./blocks";
 const LATEST_HASH_KEY: &str = "lsh";
 
 pub struct Blockchain {
@@ -38,18 +37,20 @@ impl std::fmt::Debug for Blockchain {
 
 impl Blockchain {
     // 本地数据库是否存在
-    fn exists_db() -> bool {
-        let db_path = PathBuf::from(DB_PATH);
+    fn exists_db(node_id: u32) -> bool {
+        let db_path_str = format!("./blocks_{}", node_id);
+        let db_path = PathBuf::from(db_path_str);
         fs::exists(db_path).unwrap()
     }
 
     /// 从本地数据库文件初始化区块链
-    pub fn continue_chain() -> Self {
-        if !Blockchain::exists_db() {
-            panic!("Blockchain DB doesn't exist, init one first!");
+    pub fn continue_chain(node_id: u32) -> Self {
+        if !Blockchain::exists_db(node_id) {
+            panic!("Blockchain[{}] DB doesn't exist, init one first!", node_id);
         }
 
-        let db_path = PathBuf::from(DB_PATH);
+        let db_path_str = format!("./blocks_{}", node_id);
+        let db_path = PathBuf::from(db_path_str);
 
         let db_client_mutex = Blockchain::init_db_client(db_path);
         let db_client = db_client_mutex.lock().unwrap();
@@ -85,9 +86,10 @@ impl Blockchain {
         db_client_mutex
     }
 
-    pub fn init(to: String) -> Self {
+    pub fn init(node_id: u32, to: String) -> Self {
+        let db_path_str = format!("./blocks_{}", node_id);
         // 判断本地数据库是否存在
-        let db_path = PathBuf::from(DB_PATH);
+        let db_path = PathBuf::from(db_path_str);
         if db_path.exists() {
             panic!("Blockchain has already existed, just continue it!");
         }
@@ -167,14 +169,14 @@ impl Blockchain {
     }
 
     /// 根据hash获取目标的Block
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// - `&self` (`undefined`) - Blockchain
     /// - `hash` (`&[u8]`) - hash
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// - `Option<Block>` - Block
     pub fn get_block(&self, hash: &[u8]) -> Option<Block> {
         let key = hex::encode(hash);
@@ -194,7 +196,7 @@ impl Blockchain {
     pub fn get_block_hashes(&self) -> Vec<String> {
         let mut iter = self.iterator();
 
-        let mut hashes : Vec<String> = vec![];
+        let mut hashes: Vec<String> = vec![];
         while let Some(block) = iter.next() {
             hashes.push(block.hash);
         }
@@ -203,7 +205,6 @@ impl Blockchain {
     }
 
     pub fn mine_block(&self, transactions: Vec<Transaction>) -> Block {
-
         // verify all transactions
         for tx in &transactions {
             let verify = self.verify_transaction(tx);
@@ -220,10 +221,12 @@ impl Blockchain {
 
         let last_block_bytes = database.get(last_hash_key).ok().flatten().unwrap();
 
-        let (last_block, _) : (Block, usize) = bincode::decode_from_slice(&last_block_bytes, config::standard()).unwrap();
+        let (last_block, _): (Block, usize) =
+            bincode::decode_from_slice(&last_block_bytes, config::standard()).unwrap();
 
         // do mine
-        let new_block = Block::create_block(last_block.hash.clone(), transactions, last_block.height + 1);
+        let new_block =
+            Block::create_block(last_block.hash.clone(), transactions, last_block.height + 1);
 
         // save new block & update lsh
         let new_block_bytes = bincode::encode_to_vec(&new_block, config::standard()).unwrap();

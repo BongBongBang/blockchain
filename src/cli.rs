@@ -100,15 +100,15 @@ impl CommandLine {
         println!("Usage:");
         println!("get-balance -address ADDRESS - Get the balance for an address");
         println!(
-            "create-chain -address ADDRESS - Create a blockchain and send genesis reward to address."
+            "create-chain --node-id NODE_ID --address ADDRESS - Create a blockchain and send genesis reward to address."
         );
-        println!("print-chain - Prints the blocks in the chain");
+        println!("print-chain --node-id NODE_ID - Prints the blocks in the chain");
         println!(
-            "send --from FROM --to TO --amount AMOUNT --mine - Send amount of coins. Then -mine flag is set, mine off of this node."
+            "send --node-id NODE_ID --from FROM --to TO --amount AMOUNT --mine - Send amount of coins. Then -mine flag is set, mine off of this node."
         );
         println!("create-wallet --node-id NODE_ID - Creates a new Wallet");
         println!("list-address --node-id NODE_ID - Lists the addresses in out wallet file");
-        println!("rebuild - Rebuilds the UTXO set.");
+        println!("rebuild --node-id NODE_ID - Rebuilds the UTXO set.");
         println!(
             "startnode --node-id NODE_ID --miner-address ADDRESS - Start a node with ID specified in NODE_ID"
         );
@@ -149,21 +149,27 @@ impl CommandLine {
             panic!("Address: {} is not a valid address", address);
         }
 
-        let blockchain = Rc::new(Blockchain::init(address));
+        let node_id = self.cli_param.node_id.unwrap();
+
+        let blockchain = Rc::new(Blockchain::init(node_id, address));
         let utxo_set = UTXOSet::new(blockchain);
         utxo_set.rebuild();
         println!("Created blockchain!");
     }
 
     fn rebuild(&self) {
-        let blockchain = Rc::new(Blockchain::continue_chain());
+        let node_id = self.cli_param.node_id.unwrap();
+
+        let blockchain = Rc::new(Blockchain::continue_chain(node_id));
         let utxo_set = UTXOSet::new(blockchain);
         utxo_set.rebuild();
         println!("UTXO set rebuild!");
     }
 
     fn print_chain(&self) {
-        let blockchain = Blockchain::continue_chain();
+
+        let node_id = self.cli_param.node_id.unwrap();
+        let blockchain = Blockchain::continue_chain(node_id);
         let mut iter = blockchain.iterator();
         loop {
             if let Some(block) = iter.next() {
@@ -181,7 +187,8 @@ impl CommandLine {
     }
 
     fn get_balance(&mut self) {
-        let blockchain = Rc::new(Blockchain::continue_chain());
+        let node_id = self.cli_param.node_id.unwrap();
+        let blockchain = Rc::new(Blockchain::continue_chain(node_id));
 
         let address = self.cli_param.address.take().unwrap();
         if !Wallet::validate_address(&address) {
@@ -221,7 +228,9 @@ impl CommandLine {
             );
         }
 
-        let blockchain = Rc::new(Blockchain::continue_chain());
+        let node_id = cli_param.node_id.unwrap();
+
+        let blockchain = Rc::new(Blockchain::continue_chain(node_id));
         let mut utxo_set = UTXOSet::new(Rc::clone(&blockchain));
 
         let node_id = cli_param.node_id.take().unwrap();
