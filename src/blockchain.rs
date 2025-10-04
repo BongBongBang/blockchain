@@ -45,9 +45,9 @@ impl Blockchain {
 
     /// 从本地数据库文件初始化区块链
     pub fn continue_chain(node_id: u32) -> Self {
-        if !Blockchain::exists_db(node_id) {
-            panic!("Blockchain[{}] DB doesn't exist, init one first!", node_id);
-        }
+        // if !Blockchain::exists_db(node_id) {
+        //     panic!("Blockchain[{}] DB doesn't exist, init one first!", node_id);
+        // }
 
         let db_path_str = format!("./blocks_{}", node_id);
         let db_path = PathBuf::from(db_path_str);
@@ -62,7 +62,11 @@ impl Blockchain {
                 database: Arc::clone(&db_client_mutex),
             }
         } else {
-            panic!("Blockchain latest hash doesn't exist, init blockchain first!");
+            Blockchain {
+                latest_hash: String::default(), 
+                database: Arc::clone(&db_client_mutex)
+            }
+            // panic!("Blockchain latest hash doesn't exist, init blockchain first!");
         }
     }
 
@@ -90,9 +94,9 @@ impl Blockchain {
         let db_path_str = format!("./blocks_{}", node_id);
         // 判断本地数据库是否存在
         let db_path = PathBuf::from(db_path_str);
-        if db_path.exists() {
-            panic!("Blockchain has already existed, just continue it!");
-        }
+        // if db_path.exists() {
+        //     panic!("Blockchain has already existed, just continue it!");
+        // }
 
         let db_client_mutex = Blockchain::init_db_client(db_path);
         let db_client = db_client_mutex.lock().unwrap();
@@ -104,6 +108,7 @@ impl Blockchain {
             .ok()
             .expect("Failed to init blockchain cause encoding genesis block error");
 
+        // save coinbase & genesis block
         let block_key = genesis_block.hash.clone();
         db_client
             .insert(&block_key, encoded_block)
@@ -248,7 +253,7 @@ impl Blockchain {
             }
         }
 
-        panic!("Didn't find the block height!")
+        return 0;
     }
 
     pub fn iterator(&self) -> Iterator {

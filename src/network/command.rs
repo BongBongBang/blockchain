@@ -1,9 +1,13 @@
-use std::sync::Arc;
+use std::{
+    fmt::Display,
+    sync::Arc,
+};
 
 use bincode::{Decode, Encode, config};
 
 use crate::{block::Block, transaction::Transaction};
 
+#[derive(Debug)]
 pub enum Cmd {
     Height,
     Getblocks,
@@ -12,6 +16,38 @@ pub enum Cmd {
     SendBlock,
     SendTx,
     Unknown,
+}
+
+impl Display for Cmd {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Cmd: ").unwrap();
+
+        match self {
+            Cmd::Height => {
+                f.write_str("Height").unwrap();
+            }
+            Cmd::Getblocks => {
+                f.write_str("Getblocks").unwrap();
+            }
+            Cmd::SendInv => {
+                f.write_str("SendInv").unwrap();
+            }
+            Cmd::GetData => {
+                f.write_str("GetData").unwrap();
+            }
+            Cmd::SendBlock => {
+                f.write_str("SendBlock").unwrap();
+            }
+            Cmd::SendTx => {
+                f.write_str("SendTx").unwrap();
+            }
+            Cmd::Unknown => {
+                f.write_str("Unknown").unwrap();
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl Cmd {
@@ -74,14 +110,15 @@ impl Command for HeightCmd {
         let ver = self.version();
         // ver, 1 byte
         result.push(ver);
-        // todo!
-        let length = payload.len() as u32;
         // len, 4 bytes, cause HeightCmd only has a 'height' field, u32
+        let length = payload.len() as u32;
         result.extend_from_slice(&length.to_be_bytes());
+        println!("len decode: {:?}", &length.to_be_bytes());
         // cmd, 2 bytes
         result.extend_from_slice(&Cmd::Height.encode());
         // `height` field
         result.extend_from_slice(&payload);
+
 
         result
     }

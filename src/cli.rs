@@ -54,7 +54,7 @@ pub struct CliParam {
     pub miner_address: Option<String>,
 
     #[arg(long = "node-id")]
-    pub node_id: Option<u32>,
+    pub node_id: u32,
 
     #[arg(long = "mine")]
     pub mine: Option<bool>,
@@ -115,7 +115,7 @@ impl CommandLine {
     }
 
     async fn start_node(&mut self) {
-        let node_id = self.cli_param.node_id.take().unwrap();
+        let node_id = self.cli_param.node_id;
         if let Some(miner_address) = &self.cli_param.miner_address {
             if !Wallet::validate_address(miner_address) {
                 panic!("Invalid miner-address: {}", miner_address); 
@@ -128,7 +128,7 @@ impl CommandLine {
     }
 
     fn create_wallet(&mut self) {
-        let node_id = self.cli_param.node_id.take().unwrap();
+        let node_id = self.cli_param.node_id;
         let mut wallets = Wallets::new(node_id);
         let address = wallets.add_wallet();
         wallets.save_file(node_id);
@@ -136,7 +136,7 @@ impl CommandLine {
     }
 
     fn get_all_address(&mut self) {
-        let node_id = self.cli_param.node_id.take().unwrap();
+        let node_id = self.cli_param.node_id;
         let wallets = Wallets::new(node_id);
         for address in wallets.get_all_addresses() {
             println!("Address: {}", address);
@@ -149,7 +149,7 @@ impl CommandLine {
             panic!("Address: {} is not a valid address", address);
         }
 
-        let node_id = self.cli_param.node_id.unwrap();
+        let node_id = self.cli_param.node_id;
 
         let blockchain = Rc::new(Blockchain::init(node_id, address));
         let utxo_set = UTXOSet::new(blockchain);
@@ -158,7 +158,7 @@ impl CommandLine {
     }
 
     fn rebuild(&self) {
-        let node_id = self.cli_param.node_id.unwrap();
+        let node_id = self.cli_param.node_id;
 
         let blockchain = Rc::new(Blockchain::continue_chain(node_id));
         let utxo_set = UTXOSet::new(blockchain);
@@ -168,7 +168,7 @@ impl CommandLine {
 
     fn print_chain(&self) {
 
-        let node_id = self.cli_param.node_id.unwrap();
+        let node_id = self.cli_param.node_id;
         let blockchain = Blockchain::continue_chain(node_id);
         let mut iter = blockchain.iterator();
         loop {
@@ -187,7 +187,7 @@ impl CommandLine {
     }
 
     fn get_balance(&mut self) {
-        let node_id = self.cli_param.node_id.unwrap();
+        let node_id = self.cli_param.node_id;
         let blockchain = Rc::new(Blockchain::continue_chain(node_id));
 
         let address = self.cli_param.address.take().unwrap();
@@ -228,12 +228,12 @@ impl CommandLine {
             );
         }
 
-        let node_id = cli_param.node_id.unwrap();
+        let node_id = cli_param.node_id;
 
         let blockchain = Rc::new(Blockchain::continue_chain(node_id));
         let mut utxo_set = UTXOSet::new(Rc::clone(&blockchain));
 
-        let node_id = cli_param.node_id.take().unwrap();
+        let node_id = cli_param.node_id;
         let addr_from = cli_param.from.take().unwrap();
 
         let mut wallets = Wallets::new(node_id);

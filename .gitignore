@@ -1,5 +1,5 @@
 /target/
-/blocks/
+/blocks_*/
 /wallets/
 blocks/db
 .gitignore

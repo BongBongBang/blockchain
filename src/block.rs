@@ -16,7 +16,7 @@ pub struct Block {
 
 impl Block {
     pub fn genesis(coinbase: Transaction) -> Self {
-        Block::create_block(String::default(), vec![coinbase], 0)
+        Block::create_block(String::default(), vec![coinbase], 1)
     }
 
     pub fn create_block(prev_hash: String, transactions: Vec<Transaction>, height: u128) -> Self {

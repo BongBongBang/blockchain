@@ -46,7 +46,7 @@ impl Server {
     /// - `miner_address` (`String`) - miner address
     pub async fn start_node(&mut self) {
         // continue local blockchain
-        let blockchain = Blockchain::continue_chain();
+        let blockchain = Blockchain::continue_chain(self.node_id);
         // start node server
         let addr = format!("localhost:{}", self.node_id);
         let listener = TcpListener::bind(&addr).await.unwrap();
@@ -54,7 +54,8 @@ impl Server {
         // sync version to center node
         if &addr != self.known_hosts.get(0).unwrap() {
             println!("Send [version] to center node");
-            // send_version();
+            let center_addr = Arc::new(self.known_hosts.get(0).unwrap().clone());
+            self.send_height(center_addr, &blockchain).await.unwrap();
         }
         println!("Start listening...");
         // process income
@@ -68,8 +69,9 @@ impl Server {
     }
 
     async fn process(&mut self, package: Vec<u8>, blockchain: &Blockchain) {
-        // let ver = package[0];
+        let ver = package[0];
         let cmd = Cmd::decode(package[5..7].try_into().unwrap());
+        println!("Receive request, len: {}, ver: {}, cmd: {}", package.len(), ver, cmd);
 
         match cmd {
             Cmd::Height => self.handle_height(package, blockchain).await,
@@ -174,6 +176,7 @@ impl Server {
     }
 
     async fn handle_height(&self, package: Vec<u8>, blockchain: &Blockchain) {
+        println!("Receive height bytes: {:?}", &package[7..]);
         let (payload, _): (HeightCmd, usize) =
             bincode::decode_from_slice(&package[7..], config::standard()).unwrap();
         let local_height = blockchain.get_height();
@@ -192,7 +195,7 @@ impl Server {
         blockchain: &Blockchain,
     ) -> Result<(), io::Error> {
         let height = blockchain.get_height();
-        let height_cmd = HeightCmd::new(self.node_address.clone(), height as u32);
+        let height_cmd = HeightCmd::new(Arc::clone(&self.node_address), height as u32);
         self.transmit(&addr, height_cmd).await?;
 
         Ok(())
@@ -214,13 +217,15 @@ impl Decoder for LengthHeaderDelimiter {
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         let _ver = u8::from_be_bytes(src[..1].try_into().unwrap());
-        let len = u32::from_be_bytes(src[1..4].try_into().unwrap());
+        println!("len delimiter: {:?}", &src[1..5]);
+        let content_len = u32::from_be_bytes(src[1..5].try_into().unwrap());
+        let payload_len = content_len + 7;
 
-        if src.len() < len as usize {
+        if src.len() < payload_len as usize {
             return Ok(None);
         }
 
-        let payload: Vec<u8> = src.split_to(5 + len as usize).into();
+        let payload: Vec<u8> = src.split_to(payload_len as usize).into();
 
         Ok(Some(payload))
     }
