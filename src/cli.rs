@@ -84,14 +84,14 @@ impl CommandLine {
 
     pub async fn run(&mut self) {
         match self.cli_param.operation {
-            CliOperation::CreateChain => self.create_chain(),
-            CliOperation::GetBalance => self.get_balance(),
-            CliOperation::PrintChain => self.print_chain(),
+            CliOperation::CreateChain => self.create_chain().await,
+            CliOperation::GetBalance => self.get_balance().await,
+            CliOperation::PrintChain => self.print_chain().await,
             CliOperation::CreateWallet => self.create_wallet(),
             CliOperation::ListAddress => self.get_all_address(),
             CliOperation::Send => self.send().await,
             CliOperation::PrintUsage => self.print_usage(),
-            CliOperation::Rebuild => self.rebuild(),
+            CliOperation::Rebuild => self.rebuild().await,
             CliOperation::StartNode => self.start_node().await,
         }
     }
@@ -143,7 +143,7 @@ impl CommandLine {
         }
     }
 
-    fn create_chain(&mut self) {
+    async fn create_chain(&mut self) {
         let address = self.cli_param.address.take().unwrap();
         if !Wallet::validate_address(&address) {
             panic!("Address: {} is not a valid address", address);
@@ -151,28 +151,28 @@ impl CommandLine {
 
         let node_id = self.cli_param.node_id;
 
-        let blockchain = Rc::new(Blockchain::init(node_id, address));
+        let blockchain = Rc::new(Blockchain::init(node_id, address).await);
         let utxo_set = UTXOSet::new(blockchain);
-        utxo_set.rebuild();
+        utxo_set.rebuild().await;
         println!("Created blockchain!");
     }
 
-    fn rebuild(&self) {
+    async fn rebuild(&self) {
         let node_id = self.cli_param.node_id;
 
-        let blockchain = Rc::new(Blockchain::continue_chain(node_id));
+        let blockchain = Rc::new(Blockchain::continue_chain(node_id).await);
         let utxo_set = UTXOSet::new(blockchain);
-        utxo_set.rebuild();
+        utxo_set.rebuild().await;
         println!("UTXO set rebuild!");
     }
 
-    fn print_chain(&self) {
+    async fn print_chain(&self) {
 
         let node_id = self.cli_param.node_id;
-        let blockchain = Blockchain::continue_chain(node_id);
-        let mut iter = blockchain.iterator();
+        let blockchain = Blockchain::continue_chain(node_id).await;
+        let mut iter = blockchain.iterator().await;
         loop {
-            if let Some(block) = iter.next() {
+            if let Some(block) = iter.next().await {
                 println!("Height: {}", block.height);
                 println!("Prev hash: {:?}", &block.prev_hash);
                 println!("Hash: {:?}", &block.hash);
@@ -186,9 +186,9 @@ impl CommandLine {
         }
     }
 
-    fn get_balance(&mut self) {
+    async fn get_balance(&mut self) {
         let node_id = self.cli_param.node_id;
-        let blockchain = Rc::new(Blockchain::continue_chain(node_id));
+        let blockchain = Rc::new(Blockchain::continue_chain(node_id).await);
 
         let address = self.cli_param.address.take().unwrap();
         if !Wallet::validate_address(&address) {
@@ -200,7 +200,7 @@ impl CommandLine {
 
         let utxo_set = UTXOSet::new(blockchain);
 
-        let utxos = utxo_set.find_utxo(pubkey_hash);
+        let utxos = utxo_set.find_utxo(pubkey_hash).await;
         if utxos.len() == 0 {
             println!("Address {} doesn't own any coin!", &address);
         } else {
@@ -230,7 +230,7 @@ impl CommandLine {
 
         let node_id = cli_param.node_id;
 
-        let blockchain = Rc::new(Blockchain::continue_chain(node_id));
+        let blockchain = Rc::new(Blockchain::continue_chain(node_id).await);
         let mut utxo_set = UTXOSet::new(Rc::clone(&blockchain));
 
         let node_id = cli_param.node_id;
@@ -246,12 +246,12 @@ impl CommandLine {
                 &cli_param.to.take().unwrap(),
                 cli_param.amount.take().unwrap(),
                 &mut utxo_set,
-            );
+            ).await;
 
             if self.cli_param.mine.unwrap() {
-                let new_block = blockchain.mine_block(vec![tx]);
+                let new_block = blockchain.mine_block(vec![tx]).await;
                 // 更新UTXO set
-                utxo_set.update(&new_block);
+                utxo_set.update(&new_block).await;
                 println!("Succeed sending coin!");
             } else {
                 // todo: send tcp tx to center node

@@ -29,7 +29,7 @@ impl<'a> UTXOSet {
     /// # Returns
     ///
     /// - `(u128, HashMap<String, Vec<usize>>)` - (找到的总金额， <tx_id, out_idx>)
-    pub fn find_spendable_outputs(
+    pub async fn find_spendable_outputs(
         &self,
         pub_key_hash: &[u8],
         amount: u128,
@@ -41,8 +41,8 @@ impl<'a> UTXOSet {
         for result in self
             .blockchain
             .database
-            .lock()
-            .unwrap()
+            .read()
+            .await
             .scan_prefix(UTXO_PREFIX)
         {
             let (key, val) = result.unwrap();
@@ -81,13 +81,13 @@ impl<'a> UTXOSet {
     /// # Returns
     ///
     /// - `Vec<TxOutput>` - UTXOs
-    pub fn find_utxo(&self, pub_key_hash: &[u8]) -> Vec<TxOutput> {
+    pub async fn find_utxo(&self, pub_key_hash: &[u8]) -> Vec<TxOutput> {
         let mut utxos = vec![];
         for result in self
             .blockchain
             .database
-            .lock()
-            .unwrap()
+            .read()
+            .await
             .scan_prefix(UTXO_PREFIX)
         {
             let (_, val) = result.unwrap();
@@ -112,14 +112,14 @@ impl<'a> UTXOSet {
     /// # Returns
     ///
     /// - `u128` - 总数
-    pub fn count_tx(&self) -> u128 {
+    pub async fn count_tx(&self) -> u128 {
         let mut count = 1u128;
 
         for _ in self
             .blockchain
             .database
-            .lock()
-            .unwrap()
+            .read()
+            .await
             .scan_prefix(UTXO_PREFIX)
         {
             count += 1;
@@ -134,9 +134,9 @@ impl<'a> UTXOSet {
     ///
     /// - `&self` (`undefined`) - UTXO
     /// - `block` (`&'a Block`) - Block
-    pub fn update(&self, block: &Block) {
+    pub async fn update(&self, block: &Block) {
         for tx in &block.transactions {
-            let database = self.blockchain.database.lock().unwrap();
+            let database = self.blockchain.database.write().await;
 
             // invalid referenced UTXO
             for input in &tx.inputs {
@@ -190,14 +190,14 @@ impl<'a> UTXOSet {
     /// # Arguments
     ///
     /// - `&self` (`undefined`) - UTXOSet
-    pub fn rebuild(&self) {
-        self.clear_utxo();
-        let utxos = self.blockchain.find_utxos();
+    pub async fn rebuild(&self) {
+        self.clear_utxo().await;
+        let utxos = self.blockchain.find_utxos().await;
         if utxos.is_empty() {
             return;
         }
 
-        let database = self.blockchain.database.lock().unwrap();
+        let database = self.blockchain.database.write().await;
         for (k, v) in utxos.into_iter() {
             let utxo_key = format!("{}{}", UTXO_PREFIX, k);
             let utxo_bytes = bincode::encode_to_vec(v, config::standard()).unwrap();
@@ -211,8 +211,8 @@ impl<'a> UTXOSet {
     }
 
     /// 删除blockchain存储的所有utxo-记录
-    fn clear_utxo(&self) {
-        let database = self.blockchain.database.lock().unwrap();
+    async fn clear_utxo(&self) {
+        let database = self.blockchain.database.read().await;
         for result in database.scan_prefix(UTXO_PREFIX) {
             let (k, _) = result.unwrap();
             database.remove(k).expect("Failed to clear UTXO set!");

@@ -111,9 +111,10 @@ impl Transaction {
         tx
     }
 
-    pub fn new(from_wallet: &mut Wallet, to: &str, amount: u128, utxo_set: &mut UTXOSet) -> Self {
+    pub async fn new(from_wallet: &mut Wallet, to: &str, amount: u128, utxo_set: &mut UTXOSet) -> Self {
         let (accumulated, valid_outputs) = utxo_set
             .find_spendable_outputs(&Wallet::hash_pub_key(&from_wallet.pub_key), amount)
+            .await
             .expect(&format!(
                 "Address [{}] does'nt have enough money!",
                 from_wallet.address()
@@ -155,7 +156,7 @@ impl Transaction {
 
         utxo_set
             .blockchain
-            .sign_transaction(&mut tx, &mut from_wallet.priv_key);
+            .sign_transaction(&mut tx, &mut from_wallet.priv_key).await;
 
         tx
     }

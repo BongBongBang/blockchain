@@ -8,7 +8,10 @@ use std::{
 use bincode::config;
 use bytes::{BufMut, BytesMut};
 use futures::{SinkExt, StreamExt};
-use tokio::{io, net::{TcpListener, TcpStream}};
+use tokio::{
+    io,
+    net::{TcpListener, TcpStream},
+};
 use tokio_util::codec::{Decoder, Encoder, Framed};
 
 use crate::{
@@ -25,6 +28,9 @@ pub struct Server {
     pub known_hosts: Vec<String>,
     // todo!Mutex
     pub blocks_in_transimission: HashMap<String, VecDeque<String>>,
+}
+
+pub struct Handler {
 }
 
 impl Server {
@@ -46,7 +52,7 @@ impl Server {
     /// - `miner_address` (`String`) - miner address
     pub async fn start_node(&mut self) {
         // continue local blockchain
-        let blockchain = Blockchain::continue_chain(self.node_id);
+        let blockchain = Blockchain::continue_chain(self.node_id).await;
         // start node server
         let addr = format!("localhost:{}", self.node_id);
         let listener = TcpListener::bind(&addr).await.unwrap();
@@ -71,12 +77,17 @@ impl Server {
     async fn process(&mut self, package: Vec<u8>, blockchain: &Blockchain) {
         let ver = package[0];
         let cmd = Cmd::decode(package[5..7].try_into().unwrap());
-        println!("Receive request, len: {}, ver: {}, cmd: {}", package.len(), ver, cmd);
+        println!(
+            "Receive request, len: {}, ver: {}, cmd: {}",
+            package.len(),
+            ver,
+            cmd
+        );
 
         match cmd {
             Cmd::Height => self.handle_height(package, blockchain).await,
             Cmd::Getblocks => self.handle_getblocks(package, blockchain).await,
-            Cmd::SendInv => self.handle_sendinvcmd(package).await,
+            Cmd::SendInv => self.handle_invcmd(package).await,
             Cmd::GetData => self.handle_getdatacmd(package, blockchain).await,
             Cmd::SendBlock => self.handle_sendblockcmd(package, blockchain).await,
             Cmd::SendTx => {}
@@ -90,7 +101,7 @@ impl Server {
         let (payload, _): (GetblocksCmd, usize) =
             bincode::decode_from_slice(&package[7..], config::standard()).unwrap();
         let addr_from = payload.node_addr;
-        let block_hashes = blockchain.get_block_hashes();
+        let block_hashes = blockchain.get_block_hashes().await;
 
         let node_addr = Arc::clone(&self.node_address);
         let send_inv_cmd = SendInvCmd::new(node_addr, InvType::Block, block_hashes);
@@ -98,7 +109,7 @@ impl Server {
         self.transmit(&addr_from, send_inv_cmd).await.unwrap();
     }
 
-    async fn handle_sendinvcmd(&mut self, package: Vec<u8>) {
+    async fn handle_invcmd(&mut self, package: Vec<u8>) {
         let (payload, _): (SendInvCmd, usize) =
             bincode::decode_from_slice(&package[7..], config::standard()).unwrap();
 
@@ -115,10 +126,13 @@ impl Server {
         match inv_type {
             InvType::Block => {
                 self.send_getdata(&payload.node_addr, InvType::Block, &block_id)
-                    .await.unwrap();
+                    .await
+                    .unwrap();
             }
             InvType::Tx => {
-                self.send_getdata(&payload.node_addr, InvType::Tx, &block_id).await.unwrap();
+                self.send_getdata(&payload.node_addr, InvType::Tx, &block_id)
+                    .await
+                    .unwrap();
             }
         }
     }
@@ -129,15 +143,18 @@ impl Server {
 
         // 添加block入库
         let block = payload.block;
-        blockchain.add_block(block);
+        blockchain.add_block(block).await;
 
         // 获取下一个待获取的block
         if !self.blocks_in_transimission.is_empty() {
             let host_key = self.blocks_in_transimission.keys().next().unwrap().clone();
             let blocks = self.blocks_in_transimission.get_mut(&host_key).unwrap();
-            let block_to_get = blocks.pop_front().unwrap();
 
-            self.send_getdata(&host_key, InvType::Block, &block_to_get).await.unwrap();
+            if let Some(block_to_get) = blocks.pop_front() {
+                self.send_getdata(&host_key, InvType::Block, &block_to_get)
+                    .await
+                    .unwrap();
+            }
         }
     }
 
@@ -150,7 +167,7 @@ impl Server {
         match payload.inv_type {
             InvType::Block => {
                 let id_bytes = hex::decode(&id).unwrap();
-                if let Some(block) = blockchain.get_block(&id_bytes) {
+                if let Some(block) = blockchain.get_block(&id_bytes).await {
                     let send_block_cmd = SendBlockCmd::new(Arc::clone(&self.node_address), block);
                     self.transmit(&addr_from, send_block_cmd).await.unwrap();
                 } else {
@@ -172,17 +189,20 @@ impl Server {
 
         self.transmit(&addr, get_data_cmd).await?;
 
+        println!("Sent getdata cmd");
+
         Ok(())
     }
 
     async fn handle_height(&self, package: Vec<u8>, blockchain: &Blockchain) {
-        println!("Receive height bytes: {:?}", &package[7..]);
         let (payload, _): (HeightCmd, usize) =
             bincode::decode_from_slice(&package[7..], config::standard()).unwrap();
-        let local_height = blockchain.get_height();
+        let local_height = blockchain.get_height().await;
         if local_height > payload.height as u128 {
             // send version
-            self.send_height(payload.node_addr, blockchain).await.unwrap();
+            self.send_height(payload.node_addr, blockchain)
+                .await
+                .unwrap();
         } else {
             // send get blocks
             self.send_getblocks(payload.node_addr).await.unwrap();
@@ -194,9 +214,11 @@ impl Server {
         addr: Arc<String>,
         blockchain: &Blockchain,
     ) -> Result<(), io::Error> {
-        let height = blockchain.get_height();
+        let height = blockchain.get_height().await;
         let height_cmd = HeightCmd::new(Arc::clone(&self.node_address), height as u32);
         self.transmit(&addr, height_cmd).await?;
+
+        println!("Sent height cmd");
 
         Ok(())
     }
@@ -205,8 +227,13 @@ impl Server {
         let cmd = GetblocksCmd::new(self.node_address.clone());
         self.transmit(&addr, cmd).await?;
 
+        println!("Sent getblocks cmd");
+
         Ok(())
     }
+}
+
+impl Handler {
 }
 
 pub struct LengthHeaderDelimiter;
@@ -216,8 +243,11 @@ impl Decoder for LengthHeaderDelimiter {
     type Error = io::Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        // fixed length is 7 bytes
+        if src.len() < 7 {
+            return Ok(None);
+        }
         let _ver = u8::from_be_bytes(src[..1].try_into().unwrap());
-        println!("len delimiter: {:?}", &src[1..5]);
         let content_len = u32::from_be_bytes(src[1..5].try_into().unwrap());
         let payload_len = content_len + 7;
 

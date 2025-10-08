@@ -1,19 +1,14 @@
 use bincode::{Encode, config};
 use k256::ecdsa::SigningKey;
-use std::{
-    collections::HashMap,
-    fs::{self},
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
-
+use tokio::sync::RwLock;
+use std::{collections::HashMap, fs::{self}, path::PathBuf, sync::Arc};
 use crate::{block::Block, register_exit_callback, transaction::Transaction, tx::TxOutputs};
 
 const LATEST_HASH_KEY: &str = "lsh";
 
 pub struct Blockchain {
     pub latest_hash: String,
-    pub database: Arc<Mutex<sled::Db>>,
+    pub database: Arc<RwLock<sled::Db>>,
 }
 
 impl Encode for Blockchain {
@@ -44,7 +39,7 @@ impl Blockchain {
     }
 
     /// 从本地数据库文件初始化区块链
-    pub fn continue_chain(node_id: u32) -> Self {
+    pub async fn continue_chain(node_id: u32) -> Self {
         // if !Blockchain::exists_db(node_id) {
         //     panic!("Blockchain[{}] DB doesn't exist, init one first!", node_id);
         // }
@@ -53,7 +48,7 @@ impl Blockchain {
         let db_path = PathBuf::from(db_path_str);
 
         let db_client_mutex = Blockchain::init_db_client(db_path);
-        let db_client = db_client_mutex.lock().unwrap();
+        let db_client = db_client_mutex.read().await;
         let lsh_value = db_client.get(LATEST_HASH_KEY);
 
         if let Some(lsh) = lsh_value.ok().flatten() {
@@ -63,8 +58,8 @@ impl Blockchain {
             }
         } else {
             Blockchain {
-                latest_hash: String::default(), 
-                database: Arc::clone(&db_client_mutex)
+                latest_hash: String::default(),
+                database: Arc::clone(&db_client_mutex),
             }
             // panic!("Blockchain latest hash doesn't exist, init blockchain first!");
         }
@@ -73,24 +68,24 @@ impl Blockchain {
     /*
     初始化数据库链接实例
      */
-    fn init_db_client(db_path: PathBuf) -> Arc<Mutex<sled::Db>> {
+    fn init_db_client(db_path: PathBuf) -> Arc<RwLock<sled::Db>> {
         let db = sled::open(db_path).expect("Failed to open Sled db!");
 
-        let db_client_mutex = Arc::new(Mutex::new(db));
+        let db_client_mutex = Arc::new(RwLock::new(db));
         let db_client_callback = Arc::clone(&db_client_mutex);
 
-        register_exit_callback(move || {
+        register_exit_callback(Box::pin(async move {
             db_client_callback
-                .lock()
-                .unwrap()
+                .read()
+                .await
                 .flush()
                 .expect("Failed to persist sled");
-        });
+        }));
 
         db_client_mutex
     }
 
-    pub fn init(node_id: u32, to: String) -> Self {
+    pub async fn init(node_id: u32, to: String) -> Self {
         let db_path_str = format!("./blocks_{}", node_id);
         // 判断本地数据库是否存在
         let db_path = PathBuf::from(db_path_str);
@@ -99,7 +94,7 @@ impl Blockchain {
         // }
 
         let db_client_mutex = Blockchain::init_db_client(db_path);
-        let db_client = db_client_mutex.lock().unwrap();
+        let db_client = db_client_mutex.write().await;
 
         // init coinbase & genesis block
         let coinbase_tx = Transaction::coinbase_tx(to);
@@ -128,8 +123,8 @@ impl Blockchain {
         };
     }
 
-    pub fn add_block(&self, block: Block) {
-        let database = self.database.lock().unwrap();
+    pub async fn add_block(&self, block: Block) {
+        let database = self.database.write().await;
 
         if database.contains_key(&block.hash).unwrap() {
             return;
@@ -142,25 +137,32 @@ impl Blockchain {
             .insert(&block.hash, encoded_block)
             .expect("Failed to save new added block");
 
-        // load the last block
-        let lsh_bytes = database
-            .get(LATEST_HASH_KEY)
-            .ok()
-            .flatten()
-            .expect("Failed to add_block cause there isn't latest hash in DB");
+        if let Ok(Some(lsh_bytes)) = database.get(LATEST_HASH_KEY) {
+            // load the last block
+            let lsh = hex::encode(lsh_bytes);
 
-        let lsh = hex::encode(lsh_bytes);
+            let last_block_bytes = database.get(&lsh).ok().flatten().expect(&format!(
+                "Cannot load the last block from blockchain: {}",
+                &lsh
+            ));
 
-        let last_block_bytes = database.get(&lsh).ok().flatten().expect(&format!(
-            "Cannot load the last block from blockchain: {}",
-            &lsh
-        ));
+            let (last_block, _): (Block, usize) =
+                bincode::decode_from_slice(&last_block_bytes, config::standard()).unwrap();
 
-        let (last_block, _): (Block, usize) =
-            bincode::decode_from_slice(&last_block_bytes, config::standard()).unwrap();
-
-        // save lastest hash
-        if block.height > last_block.height {
+            // save lastest hash
+            if block.height > last_block.height {
+                database
+                    .insert(
+                        LATEST_HASH_KEY,
+                        hex::decode(&block.hash).expect(&format!(
+                            "Failed to decode hex hash {} to bytes",
+                            &block.hash
+                        )),
+                    )
+                    .expect("Failed to save added block");
+                println!("Added a brand-new higher [lastest hash]!");
+            }
+        } else {
             database
                 .insert(
                     LATEST_HASH_KEY,
@@ -170,6 +172,7 @@ impl Blockchain {
                     )),
                 )
                 .expect("Failed to save added block");
+            println!("Added a brand-new higher [latest hash]!");
         }
     }
 
@@ -183,9 +186,9 @@ impl Blockchain {
     /// # Returns
     ///
     /// - `Option<Block>` - Block
-    pub fn get_block(&self, hash: &[u8]) -> Option<Block> {
+    pub async fn get_block(&self, hash: &[u8]) -> Option<Block> {
         let key = hex::encode(hash);
-        let database = self.database.lock().unwrap();
+        let database = self.database.write().await;
         let val = database.get(key).ok().flatten();
 
         match val {
@@ -198,21 +201,21 @@ impl Blockchain {
         }
     }
 
-    pub fn get_block_hashes(&self) -> Vec<String> {
-        let mut iter = self.iterator();
+    pub async fn get_block_hashes(&self) -> Vec<String> {
+        let mut iter = self.iterator().await;
 
         let mut hashes: Vec<String> = vec![];
-        while let Some(block) = iter.next() {
+        while let Some(block) = iter.next().await {
             hashes.push(block.hash);
         }
 
         hashes
     }
 
-    pub fn mine_block(&self, transactions: Vec<Transaction>) -> Block {
+    pub async fn mine_block(&self, transactions: Vec<Transaction>) -> Block {
         // verify all transactions
         for tx in &transactions {
-            let verify = self.verify_transaction(tx);
+            let verify = self.verify_transaction(tx).await;
             if !verify {
                 let tx_id = hex::encode(&tx.id);
                 panic!("Detected invalid Transaction, id: {}", tx_id);
@@ -220,7 +223,7 @@ impl Blockchain {
         }
 
         // get block height
-        let database = self.database.lock().unwrap();
+        let database = self.database.write().await;
         let last_hash = database.get(LATEST_HASH_KEY).ok().flatten().unwrap();
         let last_hash_key = hex::encode(last_hash);
 
@@ -242,8 +245,8 @@ impl Blockchain {
         new_block
     }
 
-    pub fn get_height(&self) -> u128 {
-        let database = self.database.lock().unwrap();
+    pub async fn get_height(&self) -> u128 {
+        let database = self.database.read().await;
         if let Some(lsh) = database.get(LATEST_HASH_KEY).ok().flatten() {
             let lastest_hash = hex::encode(lsh);
             if let Some(block_bytes) = database.get(lastest_hash).ok().flatten() {
@@ -256,8 +259,8 @@ impl Blockchain {
         return 0;
     }
 
-    pub fn iterator(&self) -> Iterator {
-        let database = self.database.lock().unwrap();
+    pub async fn iterator(&self) -> Iterator {
+        let database = self.database.read().await;
         if let Some(lsh) = database.get(LATEST_HASH_KEY).ok().flatten() {
             return Iterator {
                 database: Arc::clone(&self.database),
@@ -273,12 +276,12 @@ impl Blockchain {
     /*
      * 寻找某地址所有未支付Output
      */
-    pub fn find_utxos(&self) -> HashMap<String, TxOutputs> {
-        let mut iter = self.iterator();
+    pub async fn find_utxos(&self) -> HashMap<String, TxOutputs> {
+        let mut iter = self.iterator().await;
         let mut utxos = HashMap::<String, TxOutputs>::default();
         let mut spent_outputs = HashMap::<String, Vec<usize>>::default();
 
-        while let Some(block) = iter.next() {
+        while let Some(block) = iter.next().await {
             for tx in block.transactions {
                 let tx_id = hex::encode(&tx.id);
 
@@ -320,9 +323,9 @@ impl Blockchain {
     /// # Returns
     ///
     /// - `Transaction` - 事务.
-    pub fn find_transaction(&self, tx_id: &[u8]) -> Transaction {
-        let mut iter = self.iterator();
-        while let Some(block) = iter.next() {
+    pub async fn find_transaction(&self, tx_id: &[u8]) -> Transaction {
+        let mut iter = self.iterator().await;
+        while let Some(block) = iter.next().await {
             for tx in block.transactions {
                 if &tx.id == tx_id {
                     return tx;
@@ -341,10 +344,10 @@ impl Blockchain {
     /// - `priv_key` (`&SigningKey`) - 签名的私钥
     /// # Returns
     ///
-    pub fn sign_transaction(&self, tx_to_sign: &mut Transaction, priv_key: &mut SigningKey) {
+    pub async fn sign_transaction(&self, tx_to_sign: &mut Transaction, priv_key: &mut SigningKey) {
         let mut prev_txs: HashMap<String, Transaction> = HashMap::new();
         for input in &tx_to_sign.inputs {
-            let tx = self.find_transaction(&input.tx_id);
+            let tx = self.find_transaction(&input.tx_id).await;
             prev_txs.insert(hex::encode(&input.tx_id), tx);
         }
 
@@ -357,11 +360,11 @@ impl Blockchain {
     ///
     /// - `bool` - 是否通过校验
     ///
-    pub fn verify_transaction(&self, tx_to_verify: &Transaction) -> bool {
+    pub async fn verify_transaction(&self, tx_to_verify: &Transaction) -> bool {
         let mut prev_txs: HashMap<String, Transaction> = HashMap::default();
 
         for input in &tx_to_verify.inputs {
-            let tx = self.find_transaction(&input.tx_id);
+            let tx = self.find_transaction(&input.tx_id).await;
             prev_txs.insert(hex::encode(&input.tx_id), tx);
         }
 
@@ -370,16 +373,16 @@ impl Blockchain {
 }
 
 pub struct Iterator {
-    pub database: Arc<Mutex<sled::Db>>,
+    pub database: Arc<RwLock<sled::Db>>,
     pub current_hash: String,
 }
 
 impl Iterator {
-    pub fn next(&mut self) -> Option<Block> {
+    pub async fn next(&mut self) -> Option<Block> {
         if &self.current_hash == "" {
             return None;
         }
-        let database = self.database.lock().unwrap();
+        let database = self.database.write().await;
 
         let encoded_data = database
             .get(&self.current_hash)

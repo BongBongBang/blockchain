@@ -20,8 +20,6 @@ pub enum Cmd {
 
 impl Display for Cmd {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("Cmd: ").unwrap();
-
         match self {
             Cmd::Height => {
                 f.write_str("Height").unwrap();
@@ -67,6 +65,11 @@ impl Cmd {
         let seri: u16 = u16::from_be_bytes(bytes);
         match seri {
             1u16 => Cmd::Height,
+            2u16 => Cmd::Getblocks,
+            3u16 => Cmd::SendInv,
+            4u16 => Cmd::GetData,
+            5u16 => Cmd::SendBlock,
+            6u16 => Cmd::SendTx,
             _ => Cmd::Unknown,
         }
     }
@@ -113,7 +116,6 @@ impl Command for HeightCmd {
         // len, 4 bytes, cause HeightCmd only has a 'height' field, u32
         let length = payload.len() as u32;
         result.extend_from_slice(&length.to_be_bytes());
-        println!("len decode: {:?}", &length.to_be_bytes());
         // cmd, 2 bytes
         result.extend_from_slice(&Cmd::Height.encode());
         // `height` field
